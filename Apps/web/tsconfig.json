@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "types": ["vite/client", "node"],
+    "baseUrl": ".",
+    "paths": {
+      "@better-you/contracts": ["../../packages/contracts/src/index.ts"],
+      "@better-you/contracts/*": ["../../packages/contracts/src/*"],
+      "@better-you/config": ["../../packages/config/src/index.ts"],
+      "@better-you/config/*": ["../../packages/config/src/*"],
+      "@better-you/goals": ["../../services/goals/src/index.ts"],
+      "@better-you/goals/*": ["../../services/goals/src/*"]
+    }
+  },
+  "include": ["src"]
+}
