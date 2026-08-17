@@ -66,28 +66,7 @@ If a requested change could significantly affect existing architecture, explain 
 
 ---
 
-## 5. Code Quality
-
-Code should be:
-
-* readable;
-* modular;
-* maintainable;
-* appropriately documented;
-* easy for another developer to understand;
-* structured so individual features can be tested independently.
-
-Avoid:
-
-* unnecessary abstraction;
-* duplicate logic;
-* extremely large components or functions;
-* hard-coded values that should be configuration;
-* introducing dependencies without a clear reason.
-
----
-
-## 6. Security and User Data
+## 5. Security and User Data
 
 Better You will eventually handle personal user information.
 
@@ -106,7 +85,7 @@ Before implementing functionality involving authentication, personal information
 
 ---
 
-## 7. AI Features
+## 6. AI Features
 
 AI should support the Better You experience rather than become the entire product.
 
@@ -122,7 +101,7 @@ The product's value should come from the **system, workflow, user history, progr
 
 ---
 
-## 8. Development Communication
+## 7. Development Communication
 
 When working on substantial changes:
 
@@ -138,7 +117,7 @@ For small or obvious changes, proceed without unnecessary questioning.
 
 ---
 
-## 9. Current Development Priority
+## 8. Current Development Priority
 
 The immediate development focus is establishing the core Better You experience.
 
@@ -156,7 +135,7 @@ Do not prioritize advanced or decorative features ahead of the core goal-to-guid
 
 ---
 
-## 10. Git and Repository Safety
+## 9. Git and Repository Safety
 
 Do not:
 
@@ -171,7 +150,7 @@ unless explicitly instructed.
 
 Before a major structural change, ensure the existing state can be recovered through Git.
 
-## 11. 
+## 10. Search Documentation Before Asking
 
 Before asking implementation questions, search the Product Vision, MVP Living Blueprint, existing architecture decisions, and development journal. 
 
