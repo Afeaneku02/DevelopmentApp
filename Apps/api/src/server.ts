@@ -1,16 +1,19 @@
 import cors from 'cors';
 import express, { type Express } from 'express';
 import { AuthService, LocalAuthProvider, InMemoryUserRepository } from '@better-you/auth';
-import { GoalService, InMemoryGoalRepository } from '@better-you/goals';
+import { GoalService, InMemoryGoalRepository, InMemoryGoalHistoryRepository } from '@better-you/goals';
+import { ProfileService, InMemoryProfileRepository } from '@better-you/profile';
 import { getEnv } from '@better-you/config';
 import { createAuthRouter } from './routes/auth';
 import { createMeRouter } from './routes/me';
 import { createGoalRouter } from './routes/goals';
+import { createProfileRouter } from './routes/profile';
 import { errorHandler } from './middleware/errorHandler';
 
 export interface ServerDependencies {
   authService: AuthService;
   goalService: GoalService;
+  profileService: ProfileService;
 }
 
 // Fresh, isolated in-memory state per call - real server startup calls this
@@ -19,7 +22,8 @@ export interface ServerDependencies {
 export function createDefaultDependencies(): ServerDependencies {
   return {
     authService: new AuthService(new LocalAuthProvider(), new InMemoryUserRepository()),
-    goalService: new GoalService(new InMemoryGoalRepository()),
+    goalService: new GoalService(new InMemoryGoalRepository(), new InMemoryGoalHistoryRepository()),
+    profileService: new ProfileService(new InMemoryProfileRepository()),
   };
 }
 
@@ -36,6 +40,7 @@ export function createServer(deps: ServerDependencies = createDefaultDependencie
   app.use('/api/v1/auth', createAuthRouter(deps.authService));
   app.use('/api/v1/me', createMeRouter(deps.authService));
   app.use('/api/v1/goals', createGoalRouter(deps.authService, deps.goalService));
+  app.use('/api/v1/profile', createProfileRouter(deps.authService, deps.profileService));
 
   app.use(errorHandler);
 

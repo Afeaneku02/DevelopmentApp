@@ -5,7 +5,13 @@ import {
   InvalidCredentialsError,
   SessionInvalidError,
 } from '@better-you/auth';
-import { GoalLimitExceededError, GoalValidationError } from '@better-you/goals';
+import {
+  GoalLimitExceededError,
+  GoalNotFoundError,
+  GoalValidationError,
+  InvalidGoalTransitionError,
+} from '@better-you/goals';
+import { ProfileValidationError } from '@better-you/profile';
 import { BadRequestError } from '../errors';
 
 // Blueprint §2: consistent error envelope. Never leak internal error details
@@ -19,7 +25,7 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
     res.status(400).json({ error: { code: 'BAD_REQUEST', message: err.message } });
     return;
   }
-  if (err instanceof AuthValidationError || err instanceof GoalValidationError) {
+  if (err instanceof AuthValidationError || err instanceof GoalValidationError || err instanceof ProfileValidationError) {
     res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: err.message, field: err.field } });
     return;
   }
@@ -29,6 +35,14 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   }
   if (err instanceof GoalLimitExceededError) {
     res.status(409).json({ error: { code: 'GOAL_LIMIT_EXCEEDED', message: err.message } });
+    return;
+  }
+  if (err instanceof InvalidGoalTransitionError) {
+    res.status(409).json({ error: { code: 'INVALID_GOAL_TRANSITION', message: err.message } });
+    return;
+  }
+  if (err instanceof GoalNotFoundError) {
+    res.status(404).json({ error: { code: 'GOAL_NOT_FOUND', message: err.message } });
     return;
   }
   if (err instanceof InvalidCredentialsError || err instanceof SessionInvalidError) {

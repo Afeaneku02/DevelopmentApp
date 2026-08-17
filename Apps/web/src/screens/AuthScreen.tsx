@@ -43,6 +43,7 @@ export default function AuthScreen() {
 
   return (
     <div className="auth-page">
+      <div className="horizon-band" aria-hidden="true" />
       <h1>Better You</h1>
       <p className="subtitle">{mode === 'signin' ? 'Sign in to continue.' : 'Create an account to get started.'}</p>
 

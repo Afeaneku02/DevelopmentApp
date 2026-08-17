@@ -226,4 +226,207 @@ describe('Better You API (integration)', () => {
       expect(listA.body.goals[0].title).toBe('A goal');
     });
   });
+
+  describe('goal lifecycle', () => {
+    async function signUpAndLogIn(email: string, password: string): Promise<string> {
+      await request(app).post('/api/v1/auth/signup').send({ email, password });
+      const login = await request(app).post('/api/v1/auth/login').send({ email, password });
+      return login.body.token as string;
+    }
+
+    async function createGoal(token: string, title = 'Run a marathon'): Promise<string> {
+      const res = await request(app)
+        .post('/api/v1/goals')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ category: 'fitness', source: 'custom', title });
+      return res.body.goal.id as string;
+    }
+
+    it('GET /api/v1/goals/:id returns the goal, 404s for an unknown id', async () => {
+      const token = await signUpAndLogIn('jamie@example.com', 'first-goal-2026');
+      const goalId = await createGoal(token);
+
+      const found = await request(app).get(`/api/v1/goals/${goalId}`).set('Authorization', `Bearer ${token}`);
+      expect(found.status).toBe(200);
+      expect(found.body.goal.id).toBe(goalId);
+
+      const missing = await request(app)
+        .get('/api/v1/goals/00000000-0000-0000-0000-000000000000')
+        .set('Authorization', `Bearer ${token}`);
+      expect(missing.status).toBe(404);
+      expect(missing.body.error.code).toBe('GOAL_NOT_FOUND');
+    });
+
+    it('a goal cannot be read or transitioned by a different user', async () => {
+      const tokenA = await signUpAndLogIn('a@example.com', 'password-a1');
+      const tokenB = await signUpAndLogIn('b@example.com', 'password-b1');
+      const goalId = await createGoal(tokenA);
+
+      const read = await request(app).get(`/api/v1/goals/${goalId}`).set('Authorization', `Bearer ${tokenB}`);
+      expect(read.status).toBe(404);
+
+      const pause = await request(app)
+        .post(`/api/v1/goals/${goalId}/pause`)
+        .set('Authorization', `Bearer ${tokenB}`);
+      expect(pause.status).toBe(404);
+    });
+
+    it('PATCH /api/v1/goals/:id edits the goal and rejects invalid input', async () => {
+      const token = await signUpAndLogIn('jamie@example.com', 'first-goal-2026');
+      const goalId = await createGoal(token);
+
+      const ok = await request(app)
+        .patch(`/api/v1/goals/${goalId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ title: 'Run a faster marathon' });
+      expect(ok.status).toBe(200);
+      expect(ok.body.goal.title).toBe('Run a faster marathon');
+
+      const bad = await request(app)
+        .patch(`/api/v1/goals/${goalId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ title: '' });
+      expect(bad.status).toBe(400);
+      expect(bad.body.error.code).toBe('VALIDATION_ERROR');
+    });
+
+    it('walks the full pause -> resume -> complete -> archive lifecycle', async () => {
+      const token = await signUpAndLogIn('jamie@example.com', 'first-goal-2026');
+      const goalId = await createGoal(token);
+
+      const paused = await request(app)
+        .post(`/api/v1/goals/${goalId}/pause`)
+        .set('Authorization', `Bearer ${token}`);
+      expect(paused.status).toBe(200);
+      expect(paused.body.goal.status).toBe('paused');
+
+      const resumed = await request(app)
+        .post(`/api/v1/goals/${goalId}/resume`)
+        .set('Authorization', `Bearer ${token}`);
+      expect(resumed.body.goal.status).toBe('active');
+
+      const completed = await request(app)
+        .post(`/api/v1/goals/${goalId}/complete`)
+        .set('Authorization', `Bearer ${token}`);
+      expect(completed.body.goal.status).toBe('completed');
+
+      const archived = await request(app)
+        .post(`/api/v1/goals/${goalId}/archive`)
+        .set('Authorization', `Bearer ${token}`);
+      expect(archived.body.goal.status).toBe('archived');
+
+      const history = await request(app)
+        .get(`/api/v1/goals/${goalId}/history`)
+        .set('Authorization', `Bearer ${token}`);
+      expect(history.status).toBe(200);
+      expect(history.body.history.map((e: { eventType: string }) => e.eventType)).toEqual([
+        'created',
+        'paused',
+        'resumed',
+        'completed',
+        'archived',
+      ]);
+    });
+
+    it('rejects an invalid transition with 409', async () => {
+      const token = await signUpAndLogIn('jamie@example.com', 'first-goal-2026');
+      const goalId = await createGoal(token);
+
+      // Can't resume a goal that's already active.
+      const res = await request(app)
+        .post(`/api/v1/goals/${goalId}/resume`)
+        .set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(409);
+      expect(res.body.error.code).toBe('INVALID_GOAL_TRANSITION');
+    });
+
+    it('a paused goal does not count toward the active-goal limit', async () => {
+      const token = await signUpAndLogIn('jamie@example.com', 'first-goal-2026');
+      const a = await createGoal(token, 'A');
+      await createGoal(token, 'B');
+      await createGoal(token, 'C');
+
+      await request(app).post(`/api/v1/goals/${a}/pause`).set('Authorization', `Bearer ${token}`);
+
+      const fourth = await request(app)
+        .post('/api/v1/goals')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ category: 'career', source: 'custom', title: 'D' });
+      expect(fourth.status).toBe(201);
+    });
+  });
+
+  describe('profile', () => {
+    async function signUpAndLogIn(email: string, password: string): Promise<string> {
+      await request(app).post('/api/v1/auth/signup').send({ email, password });
+      const login = await request(app).post('/api/v1/auth/login').send({ email, password });
+      return login.body.token as string;
+    }
+
+    it('requires auth', async () => {
+      const get = await request(app).get('/api/v1/profile');
+      expect(get.status).toBe(401);
+
+      const patch = await request(app).patch('/api/v1/profile').send({ displayName: 'Jamie' });
+      expect(patch.status).toBe(401);
+    });
+
+    it('returns a default profile on first access', async () => {
+      const token = await signUpAndLogIn('jamie@example.com', 'first-goal-2026');
+
+      const res = await request(app).get('/api/v1/profile').set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(200);
+      expect(res.body.profile.displayName).toBe('');
+      expect(res.body.profile.timezone).toBe('UTC');
+      expect(res.body.profile.preferences).toEqual({
+        onboardingMode: 'guided_middle_ground',
+        interactionMethod: 'typed',
+      });
+    });
+
+    it('updates fields and merges partial preference updates', async () => {
+      const token = await signUpAndLogIn('jamie@example.com', 'first-goal-2026');
+
+      const first = await request(app)
+        .patch('/api/v1/profile')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ displayName: 'Jamie', preferences: { onboardingMode: 'dive_in' } });
+      expect(first.status).toBe(200);
+      expect(first.body.profile.displayName).toBe('Jamie');
+      expect(first.body.profile.preferences).toEqual({ onboardingMode: 'dive_in', interactionMethod: 'typed' });
+
+      const second = await request(app)
+        .patch('/api/v1/profile')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ preferences: { interactionMethod: 'voice' } });
+      expect(second.status).toBe(200);
+      expect(second.body.profile.displayName).toBe('Jamie');
+      expect(second.body.profile.preferences).toEqual({ onboardingMode: 'dive_in', interactionMethod: 'voice' });
+    });
+
+    it('rejects an invalid timezone', async () => {
+      const token = await signUpAndLogIn('jamie@example.com', 'first-goal-2026');
+
+      const res = await request(app)
+        .patch('/api/v1/profile')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ timezone: 'Not/AZone' });
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('VALIDATION_ERROR');
+      expect(res.body.error.field).toBe('timezone');
+    });
+
+    it('keeps profiles isolated between users', async () => {
+      const tokenA = await signUpAndLogIn('a@example.com', 'password-a1');
+      const tokenB = await signUpAndLogIn('b@example.com', 'password-b1');
+
+      await request(app)
+        .patch('/api/v1/profile')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({ displayName: 'A' });
+
+      const profileB = await request(app).get('/api/v1/profile').set('Authorization', `Bearer ${tokenB}`);
+      expect(profileB.body.profile.displayName).toBe('');
+    });
+  });
 });

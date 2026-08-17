@@ -16,9 +16,10 @@ export const GOAL_CATEGORIES: readonly GoalCategory[] = [
 
 export type GoalSource = 'suggested' | 'custom';
 
-// Only 'active' exists at creation time; the full lifecycle (pause/resume/complete/archive)
-// from Blueprint §7 is out of scope for the Goal Creation Core milestone.
-export type GoalStatus = 'active';
+// Blueprint §7 full lifecycle: active -> paused/completed/archived,
+// paused -> active/completed/archived, completed -> archived, archived is terminal.
+// See services/goals/src/goalStateMachine.ts for the enforced transition table.
+export type GoalStatus = 'active' | 'paused' | 'completed' | 'archived';
 
 export interface Goal {
   id: string;
@@ -53,5 +54,24 @@ export interface CreateCustomGoalInput {
 
 export type CreateGoalInput = CreateSuggestedGoalInput | CreateCustomGoalInput;
 
+// Blueprint §7: "Edit goal" - status changes go through the dedicated
+// pause/resume/complete/archive actions instead, not a generic status field here.
+export interface UpdateGoalInput {
+  title?: string;
+  description?: string;
+  category?: GoalCategory;
+}
+
 // Product Vision §22.1: minimum 1, maximum 3 active starting goals.
 export const MAX_ACTIVE_GOALS = 3;
+
+// Blueprint §7 core data: goal_history(id, goal_id, event_type, snapshot_json, created_at).
+export type GoalEventType = 'created' | 'updated' | 'paused' | 'resumed' | 'completed' | 'archived';
+
+export interface GoalHistoryEvent {
+  id: string;
+  goalId: string;
+  eventType: GoalEventType;
+  snapshot: Goal;
+  createdAt: string;
+}

@@ -60,5 +60,79 @@ export function createGoalRouter(authService: AuthService, goalService: GoalServ
     }
   });
 
+  router.get('/:id', async (req, res, next) => {
+    try {
+      const goal = await goalService.getGoal(req.user!.id, req.params.id);
+      res.status(200).json({ goal });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.patch('/:id', async (req, res, next) => {
+    try {
+      const body = req.body ?? {};
+      const update: { title?: string; description?: string; category?: GoalCategory } = {};
+      if (body.title !== undefined) {
+        update.title = expectString(body.title, 'title');
+      }
+      if (body.description !== undefined) {
+        update.description = expectString(body.description, 'description');
+      }
+      if (body.category !== undefined) {
+        update.category = expectString(body.category, 'category') as GoalCategory;
+      }
+      const goal = await goalService.updateGoal(req.user!.id, req.params.id, update);
+      res.status(200).json({ goal });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post('/:id/pause', async (req, res, next) => {
+    try {
+      const goal = await goalService.pauseGoal(req.user!.id, req.params.id);
+      res.status(200).json({ goal });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post('/:id/resume', async (req, res, next) => {
+    try {
+      const goal = await goalService.resumeGoal(req.user!.id, req.params.id);
+      res.status(200).json({ goal });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post('/:id/complete', async (req, res, next) => {
+    try {
+      const goal = await goalService.completeGoal(req.user!.id, req.params.id);
+      res.status(200).json({ goal });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post('/:id/archive', async (req, res, next) => {
+    try {
+      const goal = await goalService.archiveGoal(req.user!.id, req.params.id);
+      res.status(200).json({ goal });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.get('/:id/history', async (req, res, next) => {
+    try {
+      const history = await goalService.getGoalHistory(req.user!.id, req.params.id);
+      res.status(200).json({ history });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   return router;
 }

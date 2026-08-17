@@ -1,11 +1,11 @@
-import { GOAL_CATEGORIES, type CreateGoalInput } from '@better-you/contracts';
+import { GOAL_CATEGORIES, type CreateGoalInput, type GoalCategory, type UpdateGoalInput } from '@better-you/contracts';
 import { GoalValidationError } from './errors';
 import { findSuggestedGoal } from './suggestedGoals';
 
 export const TITLE_MAX_LENGTH = 200;
 export const DESCRIPTION_MAX_LENGTH = 1000;
 
-function validateText(field: string, value: string, maxLength: number, required: boolean): string {
+export function validateText(field: string, value: string, maxLength: number, required: boolean): string {
   const trimmed = value.trim();
   if (required && trimmed.length === 0) {
     throw new GoalValidationError(field, `${field} is required`);
@@ -51,4 +51,29 @@ export function validateCreateGoalInput(input: CreateGoalInput): { title: string
   }
 
   throw new GoalValidationError('source', 'source must be "suggested" or "custom"');
+}
+
+export interface ValidatedGoalUpdate {
+  title?: string;
+  description?: string;
+  category?: GoalCategory;
+}
+
+export function validateUpdateGoalInput(input: UpdateGoalInput): ValidatedGoalUpdate {
+  const result: ValidatedGoalUpdate = {};
+
+  if (input.title !== undefined) {
+    result.title = validateText('title', input.title, TITLE_MAX_LENGTH, true);
+  }
+  if (input.description !== undefined) {
+    result.description = validateText('description', input.description, DESCRIPTION_MAX_LENGTH, false);
+  }
+  if (input.category !== undefined) {
+    if (!GOAL_CATEGORIES.includes(input.category)) {
+      throw new GoalValidationError('category', `category must be one of: ${GOAL_CATEGORIES.join(', ')}`);
+    }
+    result.category = input.category;
+  }
+
+  return result;
 }

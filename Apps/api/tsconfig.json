@@ -12,7 +12,9 @@
       "@better-you/goals": ["../../services/goals/src/index.ts"],
       "@better-you/goals/*": ["../../services/goals/src/*"],
       "@better-you/auth": ["../../services/auth/src/index.ts"],
-      "@better-you/auth/*": ["../../services/auth/src/*"]
+      "@better-you/auth/*": ["../../services/auth/src/*"],
+      "@better-you/profile": ["../../services/profile/src/index.ts"],
+      "@better-you/profile/*": ["../../services/profile/src/*"]
     }
   },
   "include": ["src"]
