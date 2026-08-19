@@ -1,0 +1,22 @@
+{
+  "name": "better-you",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Better You - a personal development mentor app",
+  "type": "module",
+  "workspaces": ["apps/*"],
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "dev:web": "npm run dev -w apps/web",
+    "dev:api": "npm run dev -w apps/api"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/supertest": "^6.0.0",
+    "supertest": "^7.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}
