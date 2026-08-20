@@ -1,11 +1,27 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
-import { GOAL_CATEGORIES, MAX_ACTIVE_GOALS, type Goal, type GoalCategory, type GoalStatus } from '@better-you/contracts';
+import {
+  GOAL_CATEGORIES,
+  MAX_ACTIVE_GOALS,
+  type CheckInResponse,
+  type Goal,
+  type GoalCategory,
+  type GoalCheckInsView,
+  type GoalStatus,
+} from '@better-you/contracts';
 import { useAuth } from '../auth/AuthContext';
 import * as goalsApi from '../api/goalsApi';
+import * as checkInsApi from '../api/checkInsApi';
 import { ApiError } from '../api/client';
 import { CATEGORY_LABELS } from '../constants/goalCategories';
 import AddGoalForm from '../components/AddGoalForm';
+
+const RESPONSE_LABELS: Record<CheckInResponse, string> = {
+  yes: 'Yes',
+  no: 'No',
+  partly: 'Partly',
+  skipped: 'Skipped',
+};
 
 const STATUS_LABELS: Record<GoalStatus, string> = {
   active: 'Active',
@@ -60,6 +76,11 @@ export default function GoalsScreen({ onOpenDashboard, onOpenProfile }: GoalsScr
   const [editDescription, setEditDescription] = useState('');
   const [editCategory, setEditCategory] = useState<GoalCategory>('career');
 
+  const [expandedGoalId, setExpandedGoalId] = useState<string | null>(null);
+  const [historyByGoal, setHistoryByGoal] = useState<Record<string, GoalCheckInsView>>({});
+  const [historyLoadingGoalId, setHistoryLoadingGoalId] = useState<string | null>(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+
   async function refreshGoals(currentToken: string) {
     const res = await goalsApi.listGoals(currentToken);
     setGoals(res.goals);
@@ -91,6 +112,25 @@ export default function GoalsScreen({ onOpenDashboard, onOpenProfile }: GoalsScr
       setActionError(err instanceof ApiError ? err.message : 'Something went wrong');
     } finally {
       setActionGoalId(null);
+    }
+  }
+
+  async function toggleHistory(goalId: string) {
+    if (expandedGoalId === goalId) {
+      setExpandedGoalId(null);
+      return;
+    }
+    setExpandedGoalId(goalId);
+    if (!token) return;
+    setHistoryError(null);
+    setHistoryLoadingGoalId(goalId);
+    try {
+      const view = await checkInsApi.listGoalCheckIns(token, goalId);
+      setHistoryByGoal((current) => ({ ...current, [goalId]: view }));
+    } catch (err) {
+      setHistoryError(err instanceof ApiError ? err.message : 'Could not load check-in history');
+    } finally {
+      setHistoryLoadingGoalId(null);
     }
   }
 
@@ -216,7 +256,46 @@ export default function GoalsScreen({ onOpenDashboard, onOpenProfile }: GoalsScr
                             {label}
                           </button>
                         ))}
+                        <button type="button" onClick={() => toggleHistory(goal.id)}>
+                          {expandedGoalId === goal.id ? 'Hide history' : 'History'}
+                        </button>
                       </div>
+
+                      {expandedGoalId === goal.id && (
+                        <div className="check-in-history">
+                          {historyLoadingGoalId === goal.id ? (
+                            <p className="loading">Loading check-ins…</p>
+                          ) : historyByGoal[goal.id] ? (
+                            historyByGoal[goal.id].checkIns.length === 0 ? (
+                              <p className="empty">No check-ins recorded for this goal yet.</p>
+                            ) : (
+                              <>
+                                <p className="check-in-history-summary">
+                                  {historyByGoal[goal.id].summary.totalCount} check-in
+                                  {historyByGoal[goal.id].summary.totalCount === 1 ? '' : 's'} — Yes{' '}
+                                  {historyByGoal[goal.id].summary.responseCounts.yes}, Partly{' '}
+                                  {historyByGoal[goal.id].summary.responseCounts.partly}, No{' '}
+                                  {historyByGoal[goal.id].summary.responseCounts.no}, Skipped{' '}
+                                  {historyByGoal[goal.id].summary.responseCounts.skipped}
+                                </p>
+                                <ul className="check-in-entries">
+                                  {historyByGoal[goal.id].checkIns.map((checkIn) => (
+                                    <li key={checkIn.id} className="check-in-entry">
+                                      <span className={`response-badge response-${checkIn.response}`}>
+                                        {RESPONSE_LABELS[checkIn.response]}
+                                      </span>
+                                      <span className="check-in-date">
+                                        {new Date(checkIn.createdAt).toLocaleString()}
+                                      </span>
+                                      {checkIn.note && <p className="check-in-note">{checkIn.note}</p>}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </>
+                            )
+                          ) : null}
+                        </div>
+                      )}
                     </>
                   )}
                 </li>
@@ -225,6 +304,7 @@ export default function GoalsScreen({ onOpenDashboard, onOpenProfile }: GoalsScr
           </ul>
         )}
         {actionError && <p className="error">{actionError}</p>}
+        {historyError && <p className="error">{historyError}</p>}
       </section>
 
       <section className="create">
