@@ -29,6 +29,8 @@
       "@better-you/dashboard/*": ["services/dashboard/src/*"],
       "@better-you/check-ins": ["services/check-ins/src/index.ts"],
       "@better-you/check-ins/*": ["services/check-ins/src/*"],
+      "@better-you/progress": ["services/progress/src/index.ts"],
+      "@better-you/progress/*": ["services/progress/src/*"],
       "@better-you/api": ["apps/api/src/server.ts"],
       "@better-you/api/*": ["apps/api/src/*"]
     }

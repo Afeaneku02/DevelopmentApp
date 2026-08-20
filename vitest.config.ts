@@ -12,6 +12,7 @@ export default defineConfig({
       '@better-you/onboarding': path.resolve(__dirname, 'services/onboarding/src/index.ts'),
       '@better-you/dashboard': path.resolve(__dirname, 'services/dashboard/src/index.ts'),
       '@better-you/check-ins': path.resolve(__dirname, 'services/check-ins/src/index.ts'),
+      '@better-you/progress': path.resolve(__dirname, 'services/progress/src/index.ts'),
       '@better-you/api': path.resolve(__dirname, 'apps/api/src/server.ts'),
     },
   },

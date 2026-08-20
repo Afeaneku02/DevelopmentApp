@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
-import type { CheckInResponse, CheckInSummary, DashboardView } from '@better-you/contracts';
+import type { CheckInResponse, CheckInSummary, DashboardView, OverallProgress } from '@better-you/contracts';
 import { useAuth } from '../auth/AuthContext';
 import * as dashboardApi from '../api/dashboardApi';
 import * as checkInsApi from '../api/checkInsApi';
 import * as goalsApi from '../api/goalsApi';
 import * as profileApi from '../api/profileApi';
+import * as progressApi from '../api/progressApi';
 import { ApiError } from '../api/client';
 import { CATEGORY_LABELS } from '../constants/goalCategories';
+import { TREND_LABELS, formatConsistency } from '../constants/progress';
 
 interface DashboardScreenProps {
   onOpenGoals: () => void;
@@ -24,10 +26,15 @@ export default function DashboardScreen({ onOpenGoals, onOpenProfile }: Dashboar
   const [checkInGoalId, setCheckInGoalId] = useState<string | null>(null);
   const [checkInError, setCheckInError] = useState<string | null>(null);
   const [summaries, setSummaries] = useState<Record<string, CheckInSummary>>({});
+  const [progress, setProgress] = useState<OverallProgress | null>(null);
 
   async function refresh(currentToken: string) {
-    const { dashboard: loaded } = await dashboardApi.getDashboard(currentToken);
+    const [{ dashboard: loaded }, { progress: loadedProgress }] = await Promise.all([
+      dashboardApi.getDashboard(currentToken),
+      progressApi.getOverallProgress(currentToken),
+    ]);
     setDashboard(loaded);
+    setProgress(loadedProgress);
     const pairs = await Promise.all(
       loaded.activeGoals.map(async (goal) => {
         const view = await checkInsApi.listGoalCheckIns(currentToken, goal.id);
@@ -70,8 +77,12 @@ export default function DashboardScreen({ onOpenGoals, onOpenProfile }: Dashboar
     setCheckInGoalId(goalId);
     try {
       await checkInsApi.createCheckIn(token, { goalId, response });
-      const view = await checkInsApi.listGoalCheckIns(token, goalId);
+      const [view, { progress: loadedProgress }] = await Promise.all([
+        checkInsApi.listGoalCheckIns(token, goalId),
+        progressApi.getOverallProgress(token),
+      ]);
       setSummaries((current) => ({ ...current, [goalId]: view.summary }));
+      setProgress(loadedProgress);
     } catch (err) {
       setCheckInError(err instanceof ApiError ? err.message : 'Something went wrong');
     } finally {
@@ -137,6 +148,22 @@ export default function DashboardScreen({ onOpenGoals, onOpenProfile }: Dashboar
           <span>Completed</span>
         </div>
       </section>
+
+      {progress && progress.totalCheckIns > 0 && (
+        <section className="progress-summary">
+          <h2>Progress</h2>
+          <p>
+            {formatConsistency(progress.consistency)} across {progress.totalCheckIns} check-in
+            {progress.totalCheckIns === 1 ? '' : 's'}
+            {progress.trend !== 'not_enough_data' && (
+              <>
+                {' '}
+                — <span className={`trend-badge trend-${progress.trend}`}>{TREND_LABELS[progress.trend]}</span>
+              </>
+            )}
+          </p>
+        </section>
+      )}
 
       {activeGoals.length > 0 && (
         <section className="goals">

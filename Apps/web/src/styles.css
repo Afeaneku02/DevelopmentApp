@@ -759,3 +759,37 @@ form button {
   background: var(--color-border);
   color: var(--color-text-secondary);
 }
+
+.trend-badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+}
+
+.trend-badge.trend-improving {
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
+}
+
+.trend-badge.trend-declining {
+  background: var(--color-error-bg);
+  color: var(--color-error-text);
+}
+
+.trend-badge.trend-steady {
+  background: var(--color-border);
+  color: var(--color-text-secondary);
+}
+
+.progress-summary p,
+.goal-progress-line {
+  color: var(--color-text-secondary);
+  font-size: 0.9rem;
+}
+
+.goal-progress-line {
+  margin: 0 0 0.5rem;
+}
