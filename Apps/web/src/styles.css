@@ -693,3 +693,69 @@ form button {
 .check-in-actions button {
   padding: 0.55rem 0.75rem;
 }
+
+.check-in-history {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.check-in-history-summary {
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+  margin: 0 0 0.6rem;
+}
+
+.check-in-entries {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.check-in-entry {
+  background: var(--color-surface-warm);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0.5rem 0.7rem;
+}
+
+.check-in-date {
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+  margin-left: 0.5rem;
+}
+
+.check-in-note {
+  margin: 0.35rem 0 0;
+  font-size: 0.875rem;
+}
+
+.response-badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+}
+
+.response-badge.response-yes {
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
+}
+
+.response-badge.response-partly {
+  background: var(--color-warning-bg);
+  color: var(--color-warning-text);
+}
+
+.response-badge.response-no {
+  background: var(--color-error-bg);
+  color: var(--color-error-text);
+}
+
+.response-badge.response-skipped {
+  background: var(--color-border);
+  color: var(--color-text-secondary);
+}
