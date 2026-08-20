@@ -4,15 +4,16 @@ import { AuthProvider, useAuth } from './auth/AuthContext';
 import * as onboardingApi from './api/onboardingApi';
 import { ApiError } from './api/client';
 import AuthScreen from './screens/AuthScreen';
+import DashboardScreen from './screens/DashboardScreen';
 import GoalsScreen from './screens/GoalsScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import OnboardingFlow from './screens/OnboardingFlow';
 
-type View = 'goals' | 'profile';
+type View = 'dashboard' | 'goals' | 'profile';
 
 function AppShell() {
   const { user, token } = useAuth();
-  const [view, setView] = useState<View>('goals');
+  const [view, setView] = useState<View>('dashboard');
   const [onboarding, setOnboarding] = useState<OnboardingState | null>(null);
   const [loadingOnboarding, setLoadingOnboarding] = useState(true);
   const [onboardingLoadError, setOnboardingLoadError] = useState<string | null>(null);
@@ -48,15 +49,18 @@ function AppShell() {
 
   // 'awaiting_roadmap' means first-run onboarding is done for what this
   // milestone builds (not Blueprint §6 "complete" - see ADR 0010) - from
-  // here on, the main app is home.
+  // here on, Dashboard is home.
   if (onboarding.currentStep !== 'awaiting_roadmap') {
     return <OnboardingFlow state={onboarding} onStateChange={setOnboarding} />;
   }
 
   if (view === 'profile') {
-    return <ProfileScreen onBack={() => setView('goals')} />;
+    return <ProfileScreen onBack={() => setView('dashboard')} />;
   }
-  return <GoalsScreen onOpenProfile={() => setView('profile')} />;
+  if (view === 'goals') {
+    return <GoalsScreen onOpenDashboard={() => setView('dashboard')} onOpenProfile={() => setView('profile')} />;
+  }
+  return <DashboardScreen onOpenGoals={() => setView('goals')} onOpenProfile={() => setView('profile')} />;
 }
 
 export default function App() {

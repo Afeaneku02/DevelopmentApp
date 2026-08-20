@@ -4,12 +4,14 @@ import { AuthService, LocalAuthProvider, InMemoryUserRepository } from '@better-
 import { GoalService, InMemoryGoalRepository, InMemoryGoalHistoryRepository } from '@better-you/goals';
 import { ProfileService, InMemoryProfileRepository } from '@better-you/profile';
 import { OnboardingService, InMemoryOnboardingRepository } from '@better-you/onboarding';
+import { DashboardService } from '@better-you/dashboard';
 import { getEnv } from '@better-you/config';
 import { createAuthRouter } from './routes/auth';
 import { createMeRouter } from './routes/me';
 import { createGoalRouter } from './routes/goals';
 import { createProfileRouter } from './routes/profile';
 import { createOnboardingRouter } from './routes/onboarding';
+import { createDashboardRouter } from './routes/dashboard';
 import { errorHandler } from './middleware/errorHandler';
 
 export interface ServerDependencies {
@@ -17,6 +19,7 @@ export interface ServerDependencies {
   goalService: GoalService;
   profileService: ProfileService;
   onboardingService: OnboardingService;
+  dashboardService: DashboardService;
 }
 
 // Fresh, isolated in-memory state per call - real server startup calls this
@@ -31,6 +34,9 @@ export function createDefaultDependencies(): ServerDependencies {
     // goalService satisfies GoalLookup structurally - recordFirstGoal() uses
     // it to verify a claimed goal id is real and owned by the caller.
     onboardingService: new OnboardingService(new InMemoryOnboardingRepository(), goalService),
+    // goalService also satisfies GoalsView structurally - Dashboard is a
+    // read model assembled from real Goals data (ADR 0011).
+    dashboardService: new DashboardService(goalService),
   };
 }
 
@@ -49,6 +55,7 @@ export function createServer(deps: ServerDependencies = createDefaultDependencie
   app.use('/api/v1/goals', createGoalRouter(deps.authService, deps.goalService));
   app.use('/api/v1/profile', createProfileRouter(deps.authService, deps.profileService));
   app.use('/api/v1/onboarding', createOnboardingRouter(deps.authService, deps.onboardingService));
+  app.use('/api/v1/dashboard', createDashboardRouter(deps.authService, deps.dashboardService));
 
   app.use(errorHandler);
 

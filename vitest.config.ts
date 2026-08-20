@@ -10,6 +10,7 @@ export default defineConfig({
       '@better-you/auth': path.resolve(__dirname, 'services/auth/src/index.ts'),
       '@better-you/profile': path.resolve(__dirname, 'services/profile/src/index.ts'),
       '@better-you/onboarding': path.resolve(__dirname, 'services/onboarding/src/index.ts'),
+      '@better-you/dashboard': path.resolve(__dirname, 'services/dashboard/src/index.ts'),
       '@better-you/api': path.resolve(__dirname, 'apps/api/src/server.ts'),
     },
   },
