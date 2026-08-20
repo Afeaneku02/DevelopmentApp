@@ -16,7 +16,9 @@
       "@better-you/profile": ["../../services/profile/src/index.ts"],
       "@better-you/profile/*": ["../../services/profile/src/*"],
       "@better-you/onboarding": ["../../services/onboarding/src/index.ts"],
-      "@better-you/onboarding/*": ["../../services/onboarding/src/*"]
+      "@better-you/onboarding/*": ["../../services/onboarding/src/*"],
+      "@better-you/dashboard": ["../../services/dashboard/src/index.ts"],
+      "@better-you/dashboard/*": ["../../services/dashboard/src/*"]
     }
   },
   "include": ["src"]

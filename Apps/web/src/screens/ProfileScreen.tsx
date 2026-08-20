@@ -90,7 +90,7 @@ export default function ProfileScreen({ onBack }: ProfileScreenProps) {
 
       <header className="profile-header">
         <button className="back-link" onClick={onBack}>
-          ← Back to goals
+          ← Back to home
         </button>
         <h1>Your Profile</h1>
         <p className="subtitle">This is how Better You knows and talks to you.</p>

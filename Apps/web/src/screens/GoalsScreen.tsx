@@ -44,10 +44,11 @@ const ACTION_FN: Record<Action, typeof goalsApi.pauseGoal> = {
 };
 
 interface GoalsScreenProps {
+  onOpenDashboard: () => void;
   onOpenProfile: () => void;
 }
 
-export default function GoalsScreen({ onOpenProfile }: GoalsScreenProps) {
+export default function GoalsScreen({ onOpenDashboard, onOpenProfile }: GoalsScreenProps) {
   const { user, token, signOut } = useAuth();
   const [goals, setGoals] = useState<Goal[]>([]);
 
@@ -132,6 +133,9 @@ export default function GoalsScreen({ onOpenProfile }: GoalsScreenProps) {
             </p>
           </div>
           <div className="header-actions">
+            <button className="profile-nav-button" onClick={onOpenDashboard}>
+              Home
+            </button>
             <button className="profile-nav-button" onClick={onOpenProfile}>
               Profile
             </button>

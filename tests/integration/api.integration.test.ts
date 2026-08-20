@@ -544,4 +544,57 @@ describe('Better You API (integration)', () => {
       expect(res.body.onboarding.firstGoalId).toBe(goal.body.goal.id);
     });
   });
+
+  describe('dashboard', () => {
+    async function signUpAndLogIn(email: string, password: string): Promise<string> {
+      await request(app).post('/api/v1/auth/signup').send({ email, password });
+      const login = await request(app).post('/api/v1/auth/login').send({ email, password });
+      return login.body.token as string;
+    }
+
+    it('requires auth', async () => {
+      const res = await request(app).get('/api/v1/dashboard');
+      expect(res.status).toBe(401);
+    });
+
+    it('returns empty, intentional state for a brand-new user, suggesting add_goal', async () => {
+      const token = await signUpAndLogIn('jamie@example.com', 'first-goal-2026');
+
+      const res = await request(app).get('/api/v1/dashboard').set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(200);
+      expect(res.body.dashboard.activeGoals).toEqual([]);
+      expect(res.body.dashboard.totalGoalsCount).toBe(0);
+      expect(res.body.dashboard.nextAction.type).toBe('add_goal');
+    });
+
+    it('reflects real goal state and prioritizes resuming a paused goal', async () => {
+      const token = await signUpAndLogIn('jamie@example.com', 'first-goal-2026');
+
+      const goal = await request(app)
+        .post('/api/v1/goals')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ category: 'fitness', source: 'custom', title: 'Run a marathon' });
+
+      await request(app).post(`/api/v1/goals/${goal.body.goal.id}/pause`).set('Authorization', `Bearer ${token}`);
+
+      const res = await request(app).get('/api/v1/dashboard').set('Authorization', `Bearer ${token}`);
+      expect(res.body.dashboard.activeGoals).toEqual([]);
+      expect(res.body.dashboard.pausedGoals).toHaveLength(1);
+      expect(res.body.dashboard.nextAction.type).toBe('resume_goal');
+      expect(res.body.dashboard.nextAction.goalId).toBe(goal.body.goal.id);
+    });
+
+    it('keeps dashboards isolated between users', async () => {
+      const tokenA = await signUpAndLogIn('a@example.com', 'password-a1');
+      const tokenB = await signUpAndLogIn('b@example.com', 'password-b1');
+
+      await request(app)
+        .post('/api/v1/goals')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({ category: 'career', source: 'custom', title: "A's goal" });
+
+      const dashboardB = await request(app).get('/api/v1/dashboard').set('Authorization', `Bearer ${tokenB}`);
+      expect(dashboardB.body.dashboard.activeGoals).toEqual([]);
+    });
+  });
 });
