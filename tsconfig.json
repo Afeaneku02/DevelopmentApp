@@ -23,6 +23,8 @@
       "@better-you/auth/*": ["services/auth/src/*"],
       "@better-you/profile": ["services/profile/src/index.ts"],
       "@better-you/profile/*": ["services/profile/src/*"],
+      "@better-you/onboarding": ["services/onboarding/src/index.ts"],
+      "@better-you/onboarding/*": ["services/onboarding/src/*"],
       "@better-you/api": ["apps/api/src/server.ts"],
       "@better-you/api/*": ["apps/api/src/*"]
     }

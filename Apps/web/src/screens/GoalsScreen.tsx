@@ -1,18 +1,11 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { GOAL_CATEGORIES, MAX_ACTIVE_GOALS, type Goal, type GoalCategory, type GoalStatus } from '@better-you/contracts';
-import { getSuggestedGoalsByCategory } from '@better-you/goals';
 import { useAuth } from '../auth/AuthContext';
 import * as goalsApi from '../api/goalsApi';
 import { ApiError } from '../api/client';
-
-const CATEGORY_LABELS: Record<GoalCategory, string> = {
-  career: 'Career',
-  fitness: 'Fitness',
-  finances: 'Finances',
-  education: 'Education',
-  personal_development: 'Personal Development',
-};
+import { CATEGORY_LABELS } from '../constants/goalCategories';
+import AddGoalForm from '../components/AddGoalForm';
 
 const STATUS_LABELS: Record<GoalStatus, string> = {
   active: 'Active',
@@ -57,11 +50,6 @@ interface GoalsScreenProps {
 export default function GoalsScreen({ onOpenProfile }: GoalsScreenProps) {
   const { user, token, signOut } = useAuth();
   const [goals, setGoals] = useState<Goal[]>([]);
-  const [category, setCategory] = useState<GoalCategory | null>(null);
-  const [customTitle, setCustomTitle] = useState('');
-  const [customDescription, setCustomDescription] = useState('');
-  const [createError, setCreateError] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
 
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionGoalId, setActionGoalId] = useState<string | null>(null);
@@ -87,42 +75,8 @@ export default function GoalsScreen({ onOpenProfile }: GoalsScreenProps) {
   const atLimit = activeCount >= MAX_ACTIVE_GOALS;
   const sortedGoals = [...goals].sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]);
 
-  async function createSuggested(suggestedGoalId: string) {
-    if (!category || !token) return;
-    setCreateError(null);
-    setCreating(true);
-    try {
-      await goalsApi.createGoal(token, { source: 'suggested', category, suggestedGoalId });
-      await refreshGoals(token);
-      setCategory(null);
-    } catch (err) {
-      setCreateError(err instanceof ApiError ? err.message : 'Something went wrong');
-    } finally {
-      setCreating(false);
-    }
-  }
-
-  async function createCustom(event: FormEvent) {
-    event.preventDefault();
-    if (!category || !token) return;
-    setCreateError(null);
-    setCreating(true);
-    try {
-      await goalsApi.createGoal(token, {
-        source: 'custom',
-        category,
-        title: customTitle,
-        description: customDescription || undefined,
-      });
-      setCustomTitle('');
-      setCustomDescription('');
-      await refreshGoals(token);
-      setCategory(null);
-    } catch (err) {
-      setCreateError(err instanceof ApiError ? err.message : 'Something went wrong');
-    } finally {
-      setCreating(false);
-    }
+  async function handleGoalCreated() {
+    if (token) await refreshGoals(token);
   }
 
   async function runAction(goalId: string, action: Action) {
@@ -271,62 +225,7 @@ export default function GoalsScreen({ onOpenProfile }: GoalsScreenProps) {
 
       <section className="create">
         <h2>Add a goal</h2>
-        {atLimit ? (
-          <p className="limit">
-            You've reached the {MAX_ACTIVE_GOALS}-active-goal limit (Product Vision §22.1). Complete, archive, or
-            pause a goal to make room for another.
-          </p>
-        ) : (
-          <>
-            <div className="categories">
-              {GOAL_CATEGORIES.map((cat) => (
-                <button key={cat} className={cat === category ? 'selected' : ''} onClick={() => setCategory(cat)}>
-                  {CATEGORY_LABELS[cat]}
-                </button>
-              ))}
-            </div>
-
-            {category && (
-              <div className="category-detail">
-                <h3>{CATEGORY_LABELS[category]} — suggested goals</h3>
-                <div className="option-cards option-cards-spaced">
-                  {getSuggestedGoalsByCategory(category).map((suggestion) => (
-                    <button
-                      type="button"
-                      key={suggestion.id}
-                      className="option-card"
-                      disabled={creating}
-                      onClick={() => createSuggested(suggestion.id)}
-                    >
-                      <span className="option-card-title">{suggestion.title}</span>
-                      <span className="option-card-description">{suggestion.description}</span>
-                    </button>
-                  ))}
-                </div>
-
-                <h3>Or describe your own</h3>
-                <form onSubmit={createCustom}>
-                  <input
-                    type="text"
-                    placeholder="e.g. Run a 5k by summer"
-                    value={customTitle}
-                    onChange={(event) => setCustomTitle(event.target.value)}
-                    required
-                  />
-                  <textarea
-                    placeholder="Optional details"
-                    value={customDescription}
-                    onChange={(event) => setCustomDescription(event.target.value)}
-                  />
-                  <button type="submit" disabled={creating}>
-                    Save custom goal
-                  </button>
-                </form>
-              </div>
-            )}
-          </>
-        )}
-        {createError && <p className="error">{createError}</p>}
+        <AddGoalForm atLimit={atLimit} onCreated={handleGoalCreated} />
       </section>
     </div>
   );
