@@ -552,3 +552,65 @@ form button {
   color: var(--color-text-secondary);
   padding: 2rem 0;
 }
+
+/* ---- First-Run Onboarding ---- */
+
+.onboarding-page {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 0 1.25rem 4rem;
+}
+
+.onboarding-progress {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-secondary);
+  margin-bottom: 0.5rem;
+}
+
+.onboarding-step h1 {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  margin-bottom: 0.25rem;
+}
+
+.onboarding-step .subtitle {
+  margin-bottom: 1.5rem;
+}
+
+.onboarding-step > button {
+  margin-top: 1rem;
+  padding: 0.55rem 1.2rem;
+  border-radius: 6px;
+  border: none;
+  background: var(--color-sky-500);
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.onboarding-step > button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.onboarding-step form {
+  max-width: 420px;
+}
+
+.onboarding-step form button {
+  margin-top: 0.5rem;
+}
+
+.consent-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: var(--color-text-primary);
+  max-width: 420px;
+}
+
+.consent-checkbox input {
+  margin-top: 0.2rem;
+}

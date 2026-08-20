@@ -12,6 +12,7 @@ import {
   InvalidGoalTransitionError,
 } from '@better-you/goals';
 import { ProfileValidationError } from '@better-you/profile';
+import { OnboardingAtFinalStepError, OnboardingValidationError } from '@better-you/onboarding';
 import { BadRequestError } from '../errors';
 
 // Blueprint §2: consistent error envelope. Never leak internal error details
@@ -43,6 +44,14 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   }
   if (err instanceof GoalNotFoundError) {
     res.status(404).json({ error: { code: 'GOAL_NOT_FOUND', message: err.message } });
+    return;
+  }
+  if (err instanceof OnboardingValidationError) {
+    res.status(400).json({ error: { code: 'ONBOARDING_VALIDATION_ERROR', message: err.message } });
+    return;
+  }
+  if (err instanceof OnboardingAtFinalStepError) {
+    res.status(409).json({ error: { code: 'ONBOARDING_AT_FINAL_STEP', message: err.message } });
     return;
   }
   if (err instanceof InvalidCredentialsError || err instanceof SessionInvalidError) {

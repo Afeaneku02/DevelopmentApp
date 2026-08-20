@@ -429,4 +429,119 @@ describe('Better You API (integration)', () => {
       expect(profileB.body.profile.displayName).toBe('');
     });
   });
+
+  describe('onboarding', () => {
+    async function signUpAndLogIn(email: string, password: string): Promise<string> {
+      await request(app).post('/api/v1/auth/signup').send({ email, password });
+      const login = await request(app).post('/api/v1/auth/login').send({ email, password });
+      return login.body.token as string;
+    }
+
+    it('requires auth', async () => {
+      const res = await request(app).get('/api/v1/onboarding');
+      expect(res.status).toBe(401);
+    });
+
+    it('starts at welcome and advances step by step', async () => {
+      const token = await signUpAndLogIn('jamie@example.com', 'first-goal-2026');
+
+      const initial = await request(app).get('/api/v1/onboarding').set('Authorization', `Bearer ${token}`);
+      expect(initial.status).toBe(200);
+      expect(initial.body.onboarding.currentStep).toBe('welcome');
+
+      const afterOne = await request(app).post('/api/v1/onboarding/next').set('Authorization', `Bearer ${token}`);
+      expect(afterOne.body.onboarding.currentStep).toBe('consent');
+    });
+
+    it('blocks leaving first_goal until a first goal is recorded, then reaches awaiting_roadmap', async () => {
+      const token = await signUpAndLogIn('jamie@example.com', 'first-goal-2026');
+
+      for (let i = 0; i < 4; i++) {
+        await request(app).post('/api/v1/onboarding/next').set('Authorization', `Bearer ${token}`);
+      }
+      const atFirstGoal = await request(app)
+        .get('/api/v1/onboarding')
+        .set('Authorization', `Bearer ${token}`);
+      expect(atFirstGoal.body.onboarding.currentStep).toBe('first_goal');
+
+      const blocked = await request(app).post('/api/v1/onboarding/next').set('Authorization', `Bearer ${token}`);
+      expect(blocked.status).toBe(400);
+      expect(blocked.body.error.code).toBe('ONBOARDING_VALIDATION_ERROR');
+
+      const goal = await request(app)
+        .post('/api/v1/goals')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ category: 'career', source: 'custom', title: 'Ship the MVP' });
+
+      await request(app)
+        .post('/api/v1/onboarding/first-goal')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ goalId: goal.body.goal.id });
+
+      const final = await request(app).post('/api/v1/onboarding/next').set('Authorization', `Bearer ${token}`);
+      expect(final.status).toBe(200);
+      expect(final.body.onboarding.currentStep).toBe('awaiting_roadmap');
+
+      const stuck = await request(app).post('/api/v1/onboarding/next').set('Authorization', `Bearer ${token}`);
+      expect(stuck.status).toBe(409);
+      expect(stuck.body.error.code).toBe('ONBOARDING_AT_FINAL_STEP');
+    });
+
+    it('keeps onboarding state isolated between users', async () => {
+      const tokenA = await signUpAndLogIn('a@example.com', 'password-a1');
+      const tokenB = await signUpAndLogIn('b@example.com', 'password-b1');
+
+      await request(app).post('/api/v1/onboarding/next').set('Authorization', `Bearer ${tokenA}`);
+
+      const stateB = await request(app).get('/api/v1/onboarding').set('Authorization', `Bearer ${tokenB}`);
+      expect(stateB.body.onboarding.currentStep).toBe('welcome');
+    });
+
+    it('rejects a fake goalId on POST /onboarding/first-goal', async () => {
+      const token = await signUpAndLogIn('jamie@example.com', 'first-goal-2026');
+
+      const res = await request(app)
+        .post('/api/v1/onboarding/first-goal')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ goalId: 'not-a-real-goal-id' });
+
+      expect(res.status).toBe(404);
+      expect(res.body.error.code).toBe('GOAL_NOT_FOUND');
+    });
+
+    it('rejects a real goalId that belongs to a different user', async () => {
+      const tokenA = await signUpAndLogIn('a@example.com', 'password-a1');
+      const tokenB = await signUpAndLogIn('b@example.com', 'password-b1');
+
+      const goalA = await request(app)
+        .post('/api/v1/goals')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({ category: 'career', source: 'custom', title: "A's goal" });
+
+      const res = await request(app)
+        .post('/api/v1/onboarding/first-goal')
+        .set('Authorization', `Bearer ${tokenB}`)
+        .send({ goalId: goalA.body.goal.id });
+
+      expect(res.status).toBe(404);
+      expect(res.body.error.code).toBe('GOAL_NOT_FOUND');
+    });
+
+    it('accepts a real goalId owned by the caller', async () => {
+      const token = await signUpAndLogIn('jamie@example.com', 'first-goal-2026');
+
+      const goal = await request(app)
+        .post('/api/v1/goals')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ category: 'career', source: 'custom', title: 'Ship the MVP' });
+
+      const res = await request(app)
+        .post('/api/v1/onboarding/first-goal')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ goalId: goal.body.goal.id });
+
+      expect(res.status).toBe(200);
+      expect(res.body.onboarding.firstGoalId).toBe(goal.body.goal.id);
+    });
+  });
 });
