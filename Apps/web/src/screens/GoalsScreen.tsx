@@ -7,13 +7,16 @@ import {
   type Goal,
   type GoalCategory,
   type GoalCheckInsView,
+  type GoalProgress,
   type GoalStatus,
 } from '@better-you/contracts';
 import { useAuth } from '../auth/AuthContext';
 import * as goalsApi from '../api/goalsApi';
 import * as checkInsApi from '../api/checkInsApi';
+import * as progressApi from '../api/progressApi';
 import { ApiError } from '../api/client';
 import { CATEGORY_LABELS } from '../constants/goalCategories';
+import { TREND_LABELS, formatConsistency } from '../constants/progress';
 import AddGoalForm from '../components/AddGoalForm';
 
 const RESPONSE_LABELS: Record<CheckInResponse, string> = {
@@ -78,6 +81,7 @@ export default function GoalsScreen({ onOpenDashboard, onOpenProfile }: GoalsScr
 
   const [expandedGoalId, setExpandedGoalId] = useState<string | null>(null);
   const [historyByGoal, setHistoryByGoal] = useState<Record<string, GoalCheckInsView>>({});
+  const [progressByGoal, setProgressByGoal] = useState<Record<string, GoalProgress>>({});
   const [historyLoadingGoalId, setHistoryLoadingGoalId] = useState<string | null>(null);
   const [historyError, setHistoryError] = useState<string | null>(null);
 
@@ -125,8 +129,12 @@ export default function GoalsScreen({ onOpenDashboard, onOpenProfile }: GoalsScr
     setHistoryError(null);
     setHistoryLoadingGoalId(goalId);
     try {
-      const view = await checkInsApi.listGoalCheckIns(token, goalId);
+      const [view, { progress }] = await Promise.all([
+        checkInsApi.listGoalCheckIns(token, goalId),
+        progressApi.getGoalProgress(token, goalId),
+      ]);
       setHistoryByGoal((current) => ({ ...current, [goalId]: view }));
+      setProgressByGoal((current) => ({ ...current, [goalId]: progress }));
     } catch (err) {
       setHistoryError(err instanceof ApiError ? err.message : 'Could not load check-in history');
     } finally {
@@ -270,6 +278,20 @@ export default function GoalsScreen({ onOpenDashboard, onOpenProfile }: GoalsScr
                               <p className="empty">No check-ins recorded for this goal yet.</p>
                             ) : (
                               <>
+                                {progressByGoal[goal.id] && (
+                                  <p className="goal-progress-line">
+                                    {formatConsistency(progressByGoal[goal.id].consistency)}
+                                    {progressByGoal[goal.id].trend !== 'not_enough_data' && (
+                                      <>
+                                        {' '}
+                                        —{' '}
+                                        <span className={`trend-badge trend-${progressByGoal[goal.id].trend}`}>
+                                          {TREND_LABELS[progressByGoal[goal.id].trend]}
+                                        </span>
+                                      </>
+                                    )}
+                                  </p>
+                                )}
                                 <p className="check-in-history-summary">
                                   {historyByGoal[goal.id].summary.totalCount} check-in
                                   {historyByGoal[goal.id].summary.totalCount === 1 ? '' : 's'} — Yes{' '}

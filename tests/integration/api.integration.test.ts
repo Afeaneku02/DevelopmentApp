@@ -695,4 +695,83 @@ describe('Better You API (integration)', () => {
       expect(res.body.summary.responseCounts.skipped).toBe(1);
     });
   });
+
+  describe('progress', () => {
+    async function signUpAndLogIn(email: string, password: string): Promise<string> {
+      await request(app).post('/api/v1/auth/signup').send({ email, password });
+      const login = await request(app).post('/api/v1/auth/login').send({ email, password });
+      return login.body.token as string;
+    }
+
+    async function createGoal(token: string, title = 'Run today'): Promise<string> {
+      const res = await request(app)
+        .post('/api/v1/goals')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ category: 'fitness', source: 'custom', title });
+      return res.body.goal.id as string;
+    }
+
+    it('requires auth', async () => {
+      const overall = await request(app).get('/api/v1/progress');
+      expect(overall.status).toBe(401);
+
+      const perGoal = await request(app).get('/api/v1/goals/some-id/progress');
+      expect(perGoal.status).toBe(401);
+    });
+
+    it('returns zeroed overall progress for a brand-new user', async () => {
+      const token = await signUpAndLogIn('jamie@example.com', 'first-goal-2026');
+      const res = await request(app).get('/api/v1/progress').set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(200);
+      expect(res.body.progress.totalCheckIns).toBe(0);
+      expect(res.body.progress.consistency).toBeNull();
+      expect(res.body.progress.trend).toBe('not_enough_data');
+    });
+
+    it('computes overall progress across real check-ins from real goals', async () => {
+      const token = await signUpAndLogIn('jamie@example.com', 'first-goal-2026');
+      const goalId = await createGoal(token);
+
+      await request(app).post('/api/v1/check-ins').set('Authorization', `Bearer ${token}`).send({ goalId, response: 'yes' });
+      await request(app).post('/api/v1/check-ins').set('Authorization', `Bearer ${token}`).send({ goalId, response: 'no' });
+
+      const res = await request(app).get('/api/v1/progress').set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(200);
+      expect(res.body.progress.totalCheckIns).toBe(2);
+      expect(res.body.progress.goalsWithCheckIns).toBe(1);
+      expect(res.body.progress.consistency).toBe(0.5);
+    });
+
+    it('computes per-goal progress scoped to that goal', async () => {
+      const token = await signUpAndLogIn('jamie@example.com', 'first-goal-2026');
+      const goalId = await createGoal(token);
+      await request(app).post('/api/v1/check-ins').set('Authorization', `Bearer ${token}`).send({ goalId, response: 'yes' });
+
+      const res = await request(app).get(`/api/v1/goals/${goalId}/progress`).set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(200);
+      expect(res.body.progress.goalId).toBe(goalId);
+      expect(res.body.progress.totalCheckIns).toBe(1);
+    });
+
+    it('rejects per-goal progress for a goal owned by another user', async () => {
+      const tokenA = await signUpAndLogIn('a@example.com', 'password-a1');
+      const tokenB = await signUpAndLogIn('b@example.com', 'password-b1');
+      const goalId = await createGoal(tokenA);
+
+      const res = await request(app).get(`/api/v1/goals/${goalId}/progress`).set('Authorization', `Bearer ${tokenB}`);
+      expect(res.status).toBe(404);
+      expect(res.body.error.code).toBe('GOAL_NOT_FOUND');
+    });
+
+    it('keeps overall progress isolated between users', async () => {
+      const tokenA = await signUpAndLogIn('a@example.com', 'password-a1');
+      const tokenB = await signUpAndLogIn('b@example.com', 'password-b1');
+      const goalId = await createGoal(tokenA);
+      await request(app).post('/api/v1/check-ins').set('Authorization', `Bearer ${tokenA}`).send({ goalId, response: 'yes' });
+
+      const res = await request(app).get('/api/v1/progress').set('Authorization', `Bearer ${tokenB}`);
+      expect(res.status).toBe(200);
+      expect(res.body.progress.totalCheckIns).toBe(0);
+    });
+  });
 });

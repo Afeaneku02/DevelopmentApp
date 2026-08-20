@@ -20,7 +20,9 @@
       "@better-you/dashboard": ["../../services/dashboard/src/index.ts"],
       "@better-you/dashboard/*": ["../../services/dashboard/src/*"],
       "@better-you/check-ins": ["../../services/check-ins/src/index.ts"],
-      "@better-you/check-ins/*": ["../../services/check-ins/src/*"]
+      "@better-you/check-ins/*": ["../../services/check-ins/src/*"],
+      "@better-you/progress": ["../../services/progress/src/index.ts"],
+      "@better-you/progress/*": ["../../services/progress/src/*"]
     }
   },
   "include": ["src"]
