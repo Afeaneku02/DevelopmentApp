@@ -676,3 +676,20 @@ form button {
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
+
+.check-in-status {
+  margin: 0.55rem 0 0;
+  color: var(--color-text-secondary);
+  font-size: 0.9rem;
+}
+
+.check-in-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.8rem;
+}
+
+.check-in-actions button {
+  padding: 0.55rem 0.75rem;
+}

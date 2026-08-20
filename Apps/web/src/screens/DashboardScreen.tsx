@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import type { DashboardView } from '@better-you/contracts';
+import type { CheckInResponse, CheckInSummary, DashboardView } from '@better-you/contracts';
 import { useAuth } from '../auth/AuthContext';
 import * as dashboardApi from '../api/dashboardApi';
+import * as checkInsApi from '../api/checkInsApi';
 import * as goalsApi from '../api/goalsApi';
 import * as profileApi from '../api/profileApi';
 import { ApiError } from '../api/client';
@@ -20,10 +21,20 @@ export default function DashboardScreen({ onOpenGoals, onOpenProfile }: Dashboar
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [checkInGoalId, setCheckInGoalId] = useState<string | null>(null);
+  const [checkInError, setCheckInError] = useState<string | null>(null);
+  const [summaries, setSummaries] = useState<Record<string, CheckInSummary>>({});
 
   async function refresh(currentToken: string) {
     const { dashboard: loaded } = await dashboardApi.getDashboard(currentToken);
     setDashboard(loaded);
+    const pairs = await Promise.all(
+      loaded.activeGoals.map(async (goal) => {
+        const view = await checkInsApi.listGoalCheckIns(currentToken, goal.id);
+        return [goal.id, view.summary] as const;
+      })
+    );
+    setSummaries(Object.fromEntries(pairs));
   }
 
   useEffect(() => {
@@ -50,6 +61,21 @@ export default function DashboardScreen({ onOpenGoals, onOpenProfile }: Dashboar
       setActionError(err instanceof ApiError ? err.message : 'Something went wrong');
     } finally {
       setActionLoading(false);
+    }
+  }
+
+  async function handleCheckIn(goalId: string, response: CheckInResponse) {
+    if (!token) return;
+    setCheckInError(null);
+    setCheckInGoalId(goalId);
+    try {
+      await checkInsApi.createCheckIn(token, { goalId, response });
+      const view = await checkInsApi.listGoalCheckIns(token, goalId);
+      setSummaries((current) => ({ ...current, [goalId]: view.summary }));
+    } catch (err) {
+      setCheckInError(err instanceof ApiError ? err.message : 'Something went wrong');
+    } finally {
+      setCheckInGoalId(null);
     }
   }
 
@@ -116,14 +142,38 @@ export default function DashboardScreen({ onOpenGoals, onOpenProfile }: Dashboar
         <section className="goals">
           <h2>Active goals</h2>
           <ul>
-            {activeGoals.map((goal) => (
-              <li key={goal.id}>
-                <span className="badge">{CATEGORY_LABELS[goal.category]}</span>
-                <strong>{goal.title}</strong>
-                {goal.description && <p>{goal.description}</p>}
-              </li>
-            ))}
+            {activeGoals.map((goal) => {
+              const summary = summaries[goal.id];
+              const last = summary?.mostRecentCheckIn;
+              const busy = checkInGoalId === goal.id;
+
+              return (
+                <li key={goal.id}>
+                  <span className="badge">{CATEGORY_LABELS[goal.category]}</span>
+                  <strong>{goal.title}</strong>
+                  {goal.description && <p>{goal.description}</p>}
+                  <p className="check-in-status">
+                    {last ? `Last check-in: ${last.response}` : 'No check-ins yet'}
+                  </p>
+                  <div className="check-in-actions">
+                    <button type="button" disabled={busy} onClick={() => handleCheckIn(goal.id, 'yes')}>
+                      Yes
+                    </button>
+                    <button type="button" disabled={busy} onClick={() => handleCheckIn(goal.id, 'partly')}>
+                      Partly
+                    </button>
+                    <button type="button" disabled={busy} onClick={() => handleCheckIn(goal.id, 'no')}>
+                      No
+                    </button>
+                    <button type="button" disabled={busy} onClick={() => handleCheckIn(goal.id, 'skipped')}>
+                      Skipped
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
+          {checkInError && <p className="error">{checkInError}</p>}
         </section>
       )}
     </div>

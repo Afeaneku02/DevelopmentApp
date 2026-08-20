@@ -5,6 +5,7 @@ import { GoalService, InMemoryGoalRepository, InMemoryGoalHistoryRepository } fr
 import { ProfileService, InMemoryProfileRepository } from '@better-you/profile';
 import { OnboardingService, InMemoryOnboardingRepository } from '@better-you/onboarding';
 import { DashboardService } from '@better-you/dashboard';
+import { CheckInService, InMemoryCheckInRepository } from '@better-you/check-ins';
 import { getEnv } from '@better-you/config';
 import { createAuthRouter } from './routes/auth';
 import { createMeRouter } from './routes/me';
@@ -12,6 +13,8 @@ import { createGoalRouter } from './routes/goals';
 import { createProfileRouter } from './routes/profile';
 import { createOnboardingRouter } from './routes/onboarding';
 import { createDashboardRouter } from './routes/dashboard';
+import { createCheckInRouter } from './routes/checkIns';
+import { createGoalCheckInRouter } from './routes/goalCheckIns';
 import { errorHandler } from './middleware/errorHandler';
 
 export interface ServerDependencies {
@@ -20,6 +23,7 @@ export interface ServerDependencies {
   profileService: ProfileService;
   onboardingService: OnboardingService;
   dashboardService: DashboardService;
+  checkInService: CheckInService;
 }
 
 // Fresh, isolated in-memory state per call - real server startup calls this
@@ -37,6 +41,7 @@ export function createDefaultDependencies(): ServerDependencies {
     // goalService also satisfies GoalsView structurally - Dashboard is a
     // read model assembled from real Goals data (ADR 0011).
     dashboardService: new DashboardService(goalService),
+    checkInService: new CheckInService(new InMemoryCheckInRepository(), goalService),
   };
 }
 
@@ -56,6 +61,8 @@ export function createServer(deps: ServerDependencies = createDefaultDependencie
   app.use('/api/v1/profile', createProfileRouter(deps.authService, deps.profileService));
   app.use('/api/v1/onboarding', createOnboardingRouter(deps.authService, deps.onboardingService));
   app.use('/api/v1/dashboard', createDashboardRouter(deps.authService, deps.dashboardService));
+  app.use('/api/v1/check-ins', createCheckInRouter(deps.authService, deps.checkInService));
+  app.use('/api/v1/goals/:id/check-ins', createGoalCheckInRouter(deps.authService, deps.checkInService));
 
   app.use(errorHandler);
 

@@ -597,4 +597,102 @@ describe('Better You API (integration)', () => {
       expect(dashboardB.body.dashboard.activeGoals).toEqual([]);
     });
   });
+
+  describe('check-ins', () => {
+    async function signUpAndLogIn(email: string, password: string): Promise<string> {
+      await request(app).post('/api/v1/auth/signup').send({ email, password });
+      const login = await request(app).post('/api/v1/auth/login').send({ email, password });
+      return login.body.token as string;
+    }
+
+    async function createGoal(token: string, title = 'Run today'): Promise<string> {
+      const res = await request(app)
+        .post('/api/v1/goals')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ category: 'fitness', source: 'custom', title });
+      return res.body.goal.id as string;
+    }
+
+    it('requires auth', async () => {
+      const list = await request(app).get('/api/v1/check-ins');
+      expect(list.status).toBe(401);
+
+      const create = await request(app).post('/api/v1/check-ins').send({ goalId: 'x', response: 'yes' });
+      expect(create.status).toBe(401);
+    });
+
+    it('creates and lists a check-in for an active owned goal', async () => {
+      const token = await signUpAndLogIn('jamie@example.com', 'first-goal-2026');
+      const goalId = await createGoal(token);
+
+      const created = await request(app)
+        .post('/api/v1/check-ins')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ goalId, response: 'partly', note: 'Some progress' });
+      expect(created.status).toBe(201);
+      expect(created.body.checkIn.response).toBe('partly');
+      expect(created.body.checkIn.note).toBe('Some progress');
+
+      const list = await request(app).get('/api/v1/check-ins').set('Authorization', `Bearer ${token}`);
+      expect(list.status).toBe(200);
+      expect(list.body.checkIns).toHaveLength(1);
+    });
+
+    it('rejects invalid response values', async () => {
+      const token = await signUpAndLogIn('jamie@example.com', 'first-goal-2026');
+      const goalId = await createGoal(token);
+
+      const res = await request(app)
+        .post('/api/v1/check-ins')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ goalId, response: 'maybe' });
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('CHECK_IN_VALIDATION_ERROR');
+      expect(res.body.error.field).toBe('response');
+    });
+
+    it('rejects non-active goals', async () => {
+      const token = await signUpAndLogIn('jamie@example.com', 'first-goal-2026');
+      const goalId = await createGoal(token);
+      await request(app).post(`/api/v1/goals/${goalId}/pause`).set('Authorization', `Bearer ${token}`);
+
+      const res = await request(app)
+        .post('/api/v1/check-ins')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ goalId, response: 'yes' });
+      expect(res.status).toBe(409);
+      expect(res.body.error.code).toBe('CHECK_IN_GOAL_NOT_ACTIVE');
+    });
+
+    it('rejects a goal owned by another user', async () => {
+      const tokenA = await signUpAndLogIn('a@example.com', 'password-a1');
+      const tokenB = await signUpAndLogIn('b@example.com', 'password-b1');
+      const goalId = await createGoal(tokenA);
+
+      const res = await request(app)
+        .post('/api/v1/check-ins')
+        .set('Authorization', `Bearer ${tokenB}`)
+        .send({ goalId, response: 'yes' });
+      expect(res.status).toBe(404);
+      expect(res.body.error.code).toBe('GOAL_NOT_FOUND');
+    });
+
+    it('returns goal check-ins with a factual summary', async () => {
+      const token = await signUpAndLogIn('jamie@example.com', 'first-goal-2026');
+      const goalId = await createGoal(token);
+
+      await request(app).post('/api/v1/check-ins').set('Authorization', `Bearer ${token}`).send({ goalId, response: 'yes' });
+      await request(app)
+        .post('/api/v1/check-ins')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ goalId, response: 'skipped' });
+
+      const res = await request(app).get(`/api/v1/goals/${goalId}/check-ins`).set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(200);
+      expect(res.body.checkIns).toHaveLength(2);
+      expect(res.body.summary.totalCount).toBe(2);
+      expect(res.body.summary.responseCounts.yes).toBe(1);
+      expect(res.body.summary.responseCounts.skipped).toBe(1);
+    });
+  });
 });
