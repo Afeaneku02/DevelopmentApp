@@ -112,6 +112,22 @@ section {
   margin-top: 2rem;
 }
 
+/* Quiet, uniform section-label treatment - without this, h2 fell back to
+   the browser default (bold, ~1.5em) and competed visually with h1 on
+   every screen. Demoting every section heading to the same small label
+   style is what lets one elevated element (e.g. .next-action) actually
+   read as the primary thing on a screen instead of everything having
+   equal weight. */
+section h2 {
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-secondary);
+  margin: 0 0 0.85rem;
+}
+
 .goals ul {
   list-style: none;
   padding: 0;
@@ -619,16 +635,27 @@ form button {
 
 .next-action {
   margin-top: 1.5rem;
-  padding: 1.1rem 1.25rem;
-  border-radius: 12px;
-  background: var(--color-sky-100);
+  padding: 1.25rem 1.4rem;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--color-horizon-start) 0%, var(--color-sky-100) 100%);
   border: 1px solid var(--color-sky-300);
+  box-shadow: var(--shadow-card);
+}
+
+.next-action-label {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-sky-600);
+  margin-bottom: 0.4rem;
 }
 
 .next-action-message {
-  font-size: 1rem;
+  font-size: 1.05rem;
   color: var(--color-text-primary);
-  margin: 0 0 0.75rem;
+  margin: 0 0 0.85rem;
 }
 
 .next-action button {
@@ -645,14 +672,14 @@ form button {
   cursor: default;
 }
 
-.dashboard-stats {
+.overview-tiles {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.75rem;
-  margin-top: 1.5rem;
 }
 
 .stat-tile {
-  flex: 1;
+  flex: 1 1 100px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -675,6 +702,57 @@ form button {
   color: var(--color-text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.03em;
+}
+
+/* Wider than a plain stat tile since it holds a full ConsistencyMeter
+   (value + trend badge + bar), not just a number - grouped in the same
+   .overview-tiles row rather than a separate section, since both are
+   "at a glance" reads and don't need their own heading each. */
+.progress-tile {
+  flex: 2 1 200px;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+.progress-tile > span {
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.consistency-meter {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.consistency-meter-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.consistency-meter-value {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  color: var(--color-sky-700);
+}
+
+.consistency-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-border);
+  overflow: hidden;
+}
+
+.consistency-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--color-sky-300) 0%, var(--color-sky-600) 100%);
+  transition: width 0.3s ease;
 }
 
 .check-in-status {
@@ -700,10 +778,48 @@ form button {
   border-top: 1px solid var(--color-border);
 }
 
+.history-meter {
+  max-width: 260px;
+  margin-bottom: 0.75rem;
+}
+
 .check-in-history-summary {
   color: var(--color-text-secondary);
-  font-size: 0.85rem;
-  margin: 0 0 0.6rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin: 0 0 0.5rem;
+}
+
+.check-in-count-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.85rem;
+}
+
+.count-badge {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: var(--color-surface-warm);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+}
+
+.count-badge-yes {
+  color: var(--color-success-text);
+  border-color: var(--color-success-bg);
+}
+
+.count-badge-partly {
+  color: var(--color-warning-text);
+  border-color: var(--color-warning-bg);
+}
+
+.count-badge-no {
+  color: var(--color-error-text);
+  border-color: var(--color-error-bg);
 }
 
 .check-in-entries {
@@ -782,14 +898,4 @@ form button {
 .trend-badge.trend-steady {
   background: var(--color-border);
   color: var(--color-text-secondary);
-}
-
-.progress-summary p,
-.goal-progress-line {
-  color: var(--color-text-secondary);
-  font-size: 0.9rem;
-}
-
-.goal-progress-line {
-  margin: 0 0 0.5rem;
 }

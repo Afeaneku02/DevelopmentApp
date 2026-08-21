@@ -8,7 +8,7 @@ import * as profileApi from '../api/profileApi';
 import * as progressApi from '../api/progressApi';
 import { ApiError } from '../api/client';
 import { CATEGORY_LABELS } from '../constants/goalCategories';
-import { TREND_LABELS, formatConsistency } from '../constants/progress';
+import ConsistencyMeter from '../components/ConsistencyMeter';
 
 interface DashboardScreenProps {
   onOpenGoals: () => void;
@@ -123,6 +123,7 @@ export default function DashboardScreen({ onOpenGoals, onOpenProfile }: Dashboar
       </header>
 
       <section className="next-action">
+        <span className="next-action-label">Next</span>
         <p className="next-action-message">{nextAction.message}</p>
         {nextAction.type === 'resume_goal' && nextAction.goalId && (
           <button onClick={() => handleResume(nextAction.goalId as string)} disabled={actionLoading}>
@@ -134,36 +135,31 @@ export default function DashboardScreen({ onOpenGoals, onOpenProfile }: Dashboar
         {actionError && <p className="error">{actionError}</p>}
       </section>
 
-      <section className="dashboard-stats">
-        <div className="stat-tile">
-          <strong>{activeGoals.length}</strong>
-          <span>Active</span>
-        </div>
-        <div className="stat-tile">
-          <strong>{pausedGoals.length}</strong>
-          <span>Paused</span>
-        </div>
-        <div className="stat-tile">
-          <strong>{completedGoalsCount}</strong>
-          <span>Completed</span>
+      <section className="dashboard-overview">
+        <h2>Overview</h2>
+        <div className="overview-tiles">
+          <div className="stat-tile">
+            <strong>{activeGoals.length}</strong>
+            <span>Active</span>
+          </div>
+          <div className="stat-tile">
+            <strong>{pausedGoals.length}</strong>
+            <span>Paused</span>
+          </div>
+          <div className="stat-tile">
+            <strong>{completedGoalsCount}</strong>
+            <span>Completed</span>
+          </div>
+          {progress && progress.totalCheckIns > 0 && (
+            <div className="stat-tile progress-tile">
+              <ConsistencyMeter consistency={progress.consistency} trend={progress.trend} />
+              <span>
+                {progress.totalCheckIns} check-in{progress.totalCheckIns === 1 ? '' : 's'}
+              </span>
+            </div>
+          )}
         </div>
       </section>
-
-      {progress && progress.totalCheckIns > 0 && (
-        <section className="progress-summary">
-          <h2>Progress</h2>
-          <p>
-            {formatConsistency(progress.consistency)} across {progress.totalCheckIns} check-in
-            {progress.totalCheckIns === 1 ? '' : 's'}
-            {progress.trend !== 'not_enough_data' && (
-              <>
-                {' '}
-                — <span className={`trend-badge trend-${progress.trend}`}>{TREND_LABELS[progress.trend]}</span>
-              </>
-            )}
-          </p>
-        </section>
-      )}
 
       {activeGoals.length > 0 && (
         <section className="goals">

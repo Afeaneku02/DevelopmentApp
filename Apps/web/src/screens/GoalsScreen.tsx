@@ -16,7 +16,7 @@ import * as checkInsApi from '../api/checkInsApi';
 import * as progressApi from '../api/progressApi';
 import { ApiError } from '../api/client';
 import { CATEGORY_LABELS } from '../constants/goalCategories';
-import { TREND_LABELS, formatConsistency } from '../constants/progress';
+import ConsistencyMeter from '../components/ConsistencyMeter';
 import AddGoalForm from '../components/AddGoalForm';
 
 const RESPONSE_LABELS: Record<CheckInResponse, string> = {
@@ -279,27 +279,31 @@ export default function GoalsScreen({ onOpenDashboard, onOpenProfile }: GoalsScr
                             ) : (
                               <>
                                 {progressByGoal[goal.id] && (
-                                  <p className="goal-progress-line">
-                                    {formatConsistency(progressByGoal[goal.id].consistency)}
-                                    {progressByGoal[goal.id].trend !== 'not_enough_data' && (
-                                      <>
-                                        {' '}
-                                        —{' '}
-                                        <span className={`trend-badge trend-${progressByGoal[goal.id].trend}`}>
-                                          {TREND_LABELS[progressByGoal[goal.id].trend]}
-                                        </span>
-                                      </>
-                                    )}
-                                  </p>
+                                  <div className="history-meter">
+                                    <ConsistencyMeter
+                                      consistency={progressByGoal[goal.id].consistency}
+                                      trend={progressByGoal[goal.id].trend}
+                                    />
+                                  </div>
                                 )}
                                 <p className="check-in-history-summary">
                                   {historyByGoal[goal.id].summary.totalCount} check-in
-                                  {historyByGoal[goal.id].summary.totalCount === 1 ? '' : 's'} — Yes{' '}
-                                  {historyByGoal[goal.id].summary.responseCounts.yes}, Partly{' '}
-                                  {historyByGoal[goal.id].summary.responseCounts.partly}, No{' '}
-                                  {historyByGoal[goal.id].summary.responseCounts.no}, Skipped{' '}
-                                  {historyByGoal[goal.id].summary.responseCounts.skipped}
+                                  {historyByGoal[goal.id].summary.totalCount === 1 ? '' : 's'}
                                 </p>
+                                <div className="check-in-count-badges">
+                                  <span className="count-badge count-badge-yes">
+                                    Yes {historyByGoal[goal.id].summary.responseCounts.yes}
+                                  </span>
+                                  <span className="count-badge count-badge-partly">
+                                    Partly {historyByGoal[goal.id].summary.responseCounts.partly}
+                                  </span>
+                                  <span className="count-badge count-badge-no">
+                                    No {historyByGoal[goal.id].summary.responseCounts.no}
+                                  </span>
+                                  <span className="count-badge count-badge-skipped">
+                                    Skipped {historyByGoal[goal.id].summary.responseCounts.skipped}
+                                  </span>
+                                </div>
                                 <ul className="check-in-entries">
                                   {historyByGoal[goal.id].checkIns.map((checkIn) => (
                                     <li key={checkIn.id} className="check-in-entry">
