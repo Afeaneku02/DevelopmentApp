@@ -9,6 +9,8 @@
       "@better-you/contracts/*": ["../../packages/contracts/src/*"],
       "@better-you/config": ["../../packages/config/src/index.ts"],
       "@better-you/config/*": ["../../packages/config/src/*"],
+      "@better-you/persistence": ["../../packages/persistence/src/index.ts"],
+      "@better-you/persistence/*": ["../../packages/persistence/src/*"],
       "@better-you/goals": ["../../services/goals/src/index.ts"],
       "@better-you/goals/*": ["../../services/goals/src/*"],
       "@better-you/auth": ["../../services/auth/src/index.ts"],
