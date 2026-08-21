@@ -3,5 +3,4 @@ dist/
 Apps/web/.vite/
 .env
 *.log
-docs/
 .claude/
