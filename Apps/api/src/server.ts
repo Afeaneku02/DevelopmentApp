@@ -1,11 +1,24 @@
+import * as path from 'node:path';
 import cors from 'cors';
 import express, { type Express } from 'express';
-import { AuthService, LocalAuthProvider, InMemoryUserRepository } from '@better-you/auth';
-import { GoalService, InMemoryGoalRepository, InMemoryGoalHistoryRepository } from '@better-you/goals';
-import { ProfileService, InMemoryProfileRepository } from '@better-you/profile';
-import { OnboardingService, InMemoryOnboardingRepository } from '@better-you/onboarding';
+import {
+  AuthService,
+  LocalAuthProvider,
+  FileAuthProvider,
+  InMemoryUserRepository,
+  FileUserRepository,
+} from '@better-you/auth';
+import {
+  GoalService,
+  InMemoryGoalRepository,
+  InMemoryGoalHistoryRepository,
+  FileGoalRepository,
+  FileGoalHistoryRepository,
+} from '@better-you/goals';
+import { ProfileService, InMemoryProfileRepository, FileProfileRepository } from '@better-you/profile';
+import { OnboardingService, InMemoryOnboardingRepository, FileOnboardingRepository } from '@better-you/onboarding';
 import { DashboardService } from '@better-you/dashboard';
-import { CheckInService, InMemoryCheckInRepository } from '@better-you/check-ins';
+import { CheckInService, InMemoryCheckInRepository, FileCheckInRepository } from '@better-you/check-ins';
 import { ProgressService } from '@better-you/progress';
 import { getEnv } from '@better-you/config';
 import { createAuthRouter } from './routes/auth';
@@ -30,19 +43,40 @@ export interface ServerDependencies {
   progressService: ProgressService;
 }
 
-// Fresh, isolated in-memory state per call - real server startup calls this
-// once (see index.ts); tests call it per-test to avoid state bleeding between
-// tests (ADR 0001/0004 adapter pattern - same reasoning as GoalRepository).
-export function createDefaultDependencies(): ServerDependencies {
-  const goalService = new GoalService(new InMemoryGoalRepository(), new InMemoryGoalHistoryRepository());
-  const checkInService = new CheckInService(new InMemoryCheckInRepository(), goalService);
+// No dataDir (the default - every existing test call site) means fresh,
+// isolated in-memory state per call, exactly as before ADR 0016 - real
+// server startup (index.ts) is the only caller that passes a dataDir, so
+// only it gets durable file-backed storage. Tests stay fast and isolated;
+// no test needed to change (ADR 0001/0004 adapter pattern - same reasoning
+// as every other repository swap in this project).
+export function createDefaultDependencies(dataDir?: string): ServerDependencies {
+  const goalService = dataDir
+    ? new GoalService(
+        new FileGoalRepository(path.join(dataDir, 'goals.json')),
+        new FileGoalHistoryRepository(path.join(dataDir, 'goal-history.json'))
+      )
+    : new GoalService(new InMemoryGoalRepository(), new InMemoryGoalHistoryRepository());
+  const checkInService = dataDir
+    ? new CheckInService(new FileCheckInRepository(path.join(dataDir, 'check-ins.json')), goalService)
+    : new CheckInService(new InMemoryCheckInRepository(), goalService);
+
   return {
-    authService: new AuthService(new LocalAuthProvider(), new InMemoryUserRepository()),
+    authService: new AuthService(
+      dataDir ? new FileAuthProvider(path.join(dataDir, 'auth-identities.json')) : new LocalAuthProvider(),
+      dataDir ? new FileUserRepository(path.join(dataDir, 'users.json')) : new InMemoryUserRepository()
+    ),
     goalService,
-    profileService: new ProfileService(new InMemoryProfileRepository()),
+    profileService: new ProfileService(
+      dataDir ? new FileProfileRepository(path.join(dataDir, 'profiles.json')) : new InMemoryProfileRepository()
+    ),
     // goalService satisfies GoalLookup structurally - recordFirstGoal() uses
     // it to verify a claimed goal id is real and owned by the caller.
-    onboardingService: new OnboardingService(new InMemoryOnboardingRepository(), goalService),
+    onboardingService: new OnboardingService(
+      dataDir
+        ? new FileOnboardingRepository(path.join(dataDir, 'onboarding.json'))
+        : new InMemoryOnboardingRepository(),
+      goalService
+    ),
     // goalService also satisfies GoalsView structurally - Dashboard is a
     // read model assembled from real Goals data (ADR 0011).
     dashboardService: new DashboardService(goalService),
