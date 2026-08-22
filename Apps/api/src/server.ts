@@ -4,23 +4,26 @@ import express, { type Express } from 'express';
 import {
   AuthService,
   LocalAuthProvider,
-  FileAuthProvider,
   InMemoryUserRepository,
-  FileUserRepository,
 } from '@better-you/auth';
 import {
   GoalService,
   InMemoryGoalRepository,
   InMemoryGoalHistoryRepository,
-  FileGoalRepository,
-  FileGoalHistoryRepository,
 } from '@better-you/goals';
-import { ProfileService, InMemoryProfileRepository, FileProfileRepository } from '@better-you/profile';
-import { OnboardingService, InMemoryOnboardingRepository, FileOnboardingRepository } from '@better-you/onboarding';
+import { ProfileService, InMemoryProfileRepository } from '@better-you/profile';
+import { OnboardingService, InMemoryOnboardingRepository } from '@better-you/onboarding';
 import { DashboardService } from '@better-you/dashboard';
-import { CheckInService, InMemoryCheckInRepository, FileCheckInRepository } from '@better-you/check-ins';
+import { CheckInService, InMemoryCheckInRepository } from '@better-you/check-ins';
 import { ProgressService } from '@better-you/progress';
 import { getEnv } from '@better-you/config';
+import { FileAuthProvider } from '../../../services/auth/src/fileAuthProvider';
+import { FileUserRepository } from '../../../services/auth/src/fileUserRepository';
+import { FileGoalRepository } from '../../../services/goals/src/fileGoalRepository';
+import { FileGoalHistoryRepository } from '../../../services/goals/src/fileGoalHistoryRepository';
+import { FileProfileRepository } from '../../../services/profile/src/fileProfileRepository';
+import { FileOnboardingRepository } from '../../../services/onboarding/src/fileOnboardingRepository';
+import { FileCheckInRepository } from '../../../services/check-ins/src/fileCheckInRepository';
 import { createAuthRouter } from './routes/auth';
 import { createMeRouter } from './routes/me';
 import { createGoalRouter } from './routes/goals';
