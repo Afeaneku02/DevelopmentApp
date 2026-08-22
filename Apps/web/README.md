@@ -1,18 +1,19 @@
-# apps/web (dev preview)
+# apps/web
 
-A minimal React UI for sign-up/sign-in and Goal Creation Core, talking to `apps/api` over real HTTP (see `src/api/`). Nothing is called in-process anymore - the earlier direct-`GoalService`-in-the-browser approach (ADR 0003) only ever applied to Goals, and is now retired now that a real API exists (ADR 0005).
+The React UI for Better You: sign-up/sign-in, First-Run Onboarding, Dashboard, Goals (full lifecycle + check-in history), Profile, and quick check-ins - all talking to `apps/api` over real HTTP (see `src/api/`). Nothing is called in-process - the earlier direct-`GoalService`-in-the-browser approach (ADR 0003) only ever applied to Goals, and was retired once a real API existed (ADR 0005).
 
-The bearer token lives only in React state (`src/auth/AuthContext.tsx`) - never `localStorage` - so reloading the page signs you out again. That's an accepted tradeoff for this milestone, not a bug.
+The bearer token lives only in React state (`src/auth/AuthContext.tsx`) - never `localStorage` - so reloading the page signs you out again (your account and data are unaffected; sign back in). That's a deliberate tradeoff, not a bug.
 
-This is still a developer-facing preview, not a designed product screen. Real onboarding/goal screens (Product Vision §15.1, §22) should go through the UI/UX and visual-design passes once Onboarding exists.
+Auth/Goals/Profile/Dashboard/Onboarding all have real, designed screens (Sky/Midnight design tokens - see ADR 0007/0008/0014); this is not a bare dev-preview anymore.
 
 ## Run
 
-Needs `apps/api` running first (`npm run dev:api` from the repo root, defaults to `http://localhost:4000`).
+Needs `apps/api` running first (`npm run dev:api` from the repo root, defaults to `http://localhost:4000`). See the repo-root `RUNNING.md` for the full local setup, environment, and verification guide. Quick version:
 
 ```
 npm install
-npm run dev:web
+cp .env.example .env   # from apps/web
+npm run dev:web        # from the repo root
 ```
 
-Override the API's URL with `VITE_API_BASE_URL` if it's not running on the default port.
+Vite loads `apps/web/.env` automatically; override `VITE_API_BASE_URL` in it if `apps/api` isn't running on the default port.
