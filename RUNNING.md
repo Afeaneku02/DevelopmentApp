@@ -6,6 +6,9 @@ etc.) - that's a separate, not-yet-started milestone (see
 `docs/architecture-decisions/0017-local-release-readiness.md`). Everything
 below runs on your own machine, storing data in local JSON files.
 
+For running a shareable, non-production copy in the cloud (Vercel + Render),
+see `docs/environments.md` instead.
+
 ## Prerequisites
 
 - **Node.js 20.12+** (Node 22.x also works, and is what this project is
