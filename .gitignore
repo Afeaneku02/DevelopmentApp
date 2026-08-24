@@ -5,3 +5,5 @@ Apps/api/data/
 .env
 *.log
 .claude/
+docs/
+*.docx
