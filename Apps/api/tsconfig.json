@@ -24,7 +24,9 @@
       "@better-you/check-ins": ["../../services/check-ins/src/index.ts"],
       "@better-you/check-ins/*": ["../../services/check-ins/src/*"],
       "@better-you/progress": ["../../services/progress/src/index.ts"],
-      "@better-you/progress/*": ["../../services/progress/src/*"]
+      "@better-you/progress/*": ["../../services/progress/src/*"],
+      "@better-you/roadmap": ["../../services/roadmap/src/index.ts"],
+      "@better-you/roadmap/*": ["../../services/roadmap/src/*"]
     }
   },
   "include": ["src"]

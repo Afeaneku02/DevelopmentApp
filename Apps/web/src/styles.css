@@ -847,6 +847,65 @@ form button {
   font-size: 0.875rem;
 }
 
+/* ---- Roadmap (placeholder-generated, ADR 0020) ---- */
+
+.roadmap-panel {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.roadmap-panel-label {
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin: 0 0 0.6rem;
+}
+
+.roadmap-milestone {
+  padding: 0.6rem 0.7rem;
+  margin-bottom: 0.5rem;
+  border-radius: 8px;
+  background: var(--color-surface-warm);
+  border: 1px solid var(--color-border);
+}
+
+.roadmap-milestone-pending {
+  opacity: 0.6;
+}
+
+.roadmap-milestone-completed strong {
+  text-decoration: line-through;
+  color: var(--color-text-secondary);
+}
+
+.roadmap-actionsteps {
+  list-style: none;
+  padding: 0;
+  margin: 0.4rem 0 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.roadmap-actionstep {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.roadmap-actionstep-completed span:first-child {
+  text-decoration: line-through;
+  color: var(--color-text-secondary);
+}
+
+.roadmap-actionstep-check {
+  color: var(--color-success-text);
+  font-weight: 600;
+}
+
 .response-badge {
   display: inline-block;
   font-size: 0.7rem;

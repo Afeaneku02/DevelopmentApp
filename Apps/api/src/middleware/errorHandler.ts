@@ -14,6 +14,13 @@ import {
 import { ProfileValidationError } from '@better-you/profile';
 import { OnboardingAtFinalStepError, OnboardingValidationError } from '@better-you/onboarding';
 import { CheckInGoalNotActiveError, CheckInValidationError } from '@better-you/check-ins';
+import {
+  RoadmapAlreadyExistsError,
+  RoadmapMilestoneNotActiveError,
+  RoadmapNotFoundError,
+  RoadmapStepNotFoundError,
+  RoadmapValidationError,
+} from '@better-you/roadmap';
 import { BadRequestError } from '../errors';
 
 // Blueprint §2: consistent error envelope. Never leak internal error details
@@ -29,6 +36,10 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   }
   if (err instanceof AuthValidationError || err instanceof GoalValidationError || err instanceof ProfileValidationError) {
     res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: err.message, field: err.field } });
+    return;
+  }
+  if (err instanceof RoadmapValidationError) {
+    res.status(400).json({ error: { code: 'ROADMAP_VALIDATION_ERROR', message: err.message, field: err.field } });
     return;
   }
   if (err instanceof EmailAlreadyInUseError) {
@@ -61,6 +72,22 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   }
   if (err instanceof CheckInGoalNotActiveError) {
     res.status(409).json({ error: { code: 'CHECK_IN_GOAL_NOT_ACTIVE', message: err.message } });
+    return;
+  }
+  if (err instanceof RoadmapAlreadyExistsError) {
+    res.status(409).json({ error: { code: 'ROADMAP_ALREADY_EXISTS', message: err.message } });
+    return;
+  }
+  if (err instanceof RoadmapStepNotFoundError) {
+    res.status(404).json({ error: { code: 'ROADMAP_STEP_NOT_FOUND', message: err.message } });
+    return;
+  }
+  if (err instanceof RoadmapMilestoneNotActiveError) {
+    res.status(409).json({ error: { code: 'ROADMAP_MILESTONE_NOT_ACTIVE', message: err.message } });
+    return;
+  }
+  if (err instanceof RoadmapNotFoundError) {
+    res.status(404).json({ error: { code: 'ROADMAP_NOT_FOUND', message: err.message } });
     return;
   }
   if (err instanceof InvalidCredentialsError || err instanceof SessionInvalidError) {
