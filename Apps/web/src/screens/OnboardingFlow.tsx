@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ONBOARDING_STEPS, type Goal, type OnboardingState } from '@better-you/contracts';
 import { useAuth } from '../auth/AuthContext';
 import * as onboardingApi from '../api/onboardingApi';
+import * as roadmapApi from '../api/roadmapApi';
 import { ApiError } from '../api/client';
 import WelcomeStep from '../onboarding/WelcomeStep';
 import ConsentStep from '../onboarding/ConsentStep';
@@ -44,6 +45,12 @@ export default function OnboardingFlow({ state, onStateChange }: OnboardingFlowP
     setLoading(true);
     try {
       await onboardingApi.recordFirstGoal(token, goal.id);
+      // Best-effort placeholder roadmap for the first goal - generated here
+      // so Dashboard's "continue roadmap" next action has something real to
+      // point to as soon as onboarding finishes (ADR 0020). A generation
+      // failure shouldn't strand the user mid-onboarding, so it's swallowed
+      // rather than blocking the step advance.
+      await roadmapApi.generateRoadmap(token, goal.id).catch(() => undefined);
       const { onboarding } = await onboardingApi.nextOnboardingStep(token);
       onStateChange(onboarding);
     } catch (err) {

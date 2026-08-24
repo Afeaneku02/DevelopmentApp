@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import type { Goal } from '@better-you/contracts';
+import type { Goal, Roadmap } from '@better-you/contracts';
 import { DashboardService } from '../dashboardService';
 import type { GoalsView } from '../goalsView';
+import type { RoadmapsView } from '../roadmapsView';
 
 const NOW = new Date('2026-01-15T00:00:00.000Z');
 
@@ -9,6 +10,13 @@ class FakeGoalsView implements GoalsView {
   constructor(private readonly goals: Goal[]) {}
   async listGoals(): Promise<Goal[]> {
     return this.goals;
+  }
+}
+
+class FakeRoadmapsView implements RoadmapsView {
+  constructor(private readonly roadmaps: Roadmap[] = []) {}
+  async listRoadmaps(): Promise<Roadmap[]> {
+    return this.roadmaps;
   }
 }
 
@@ -29,12 +37,13 @@ function makeGoal(overrides: Partial<Goal>): Goal {
 
 describe('DashboardService', () => {
   it('returns empty, intentional state for a brand-new user', async () => {
-    const service = new DashboardService(new FakeGoalsView([]), () => NOW);
+    const service = new DashboardService(new FakeGoalsView([]), new FakeRoadmapsView(), () => NOW);
     const dashboard = await service.getDashboard('user-1');
     expect(dashboard.activeGoals).toEqual([]);
     expect(dashboard.pausedGoals).toEqual([]);
     expect(dashboard.completedGoalsCount).toBe(0);
     expect(dashboard.totalGoalsCount).toBe(0);
+    expect(dashboard.roadmaps).toEqual([]);
     expect(dashboard.nextAction.type).toBe('add_goal');
   });
 
@@ -45,7 +54,7 @@ describe('DashboardService', () => {
       makeGoal({ id: 'c', status: 'completed' }),
       makeGoal({ id: 'ar', status: 'archived' }),
     ];
-    const service = new DashboardService(new FakeGoalsView(goals), () => NOW);
+    const service = new DashboardService(new FakeGoalsView(goals), new FakeRoadmapsView(), () => NOW);
     const dashboard = await service.getDashboard('user-1');
 
     expect(dashboard.activeGoals.map((g) => g.id)).toEqual(['a']);
@@ -56,22 +65,49 @@ describe('DashboardService', () => {
 
   it('excludes archived goals from completedGoalsCount', async () => {
     const goals = [makeGoal({ id: 'ar', status: 'archived' })];
-    const service = new DashboardService(new FakeGoalsView(goals), () => NOW);
+    const service = new DashboardService(new FakeGoalsView(goals), new FakeRoadmapsView(), () => NOW);
     const dashboard = await service.getDashboard('user-1');
     expect(dashboard.completedGoalsCount).toBe(0);
   });
 
   it('stamps generatedAt from the injected clock', async () => {
-    const service = new DashboardService(new FakeGoalsView([]), () => NOW);
+    const service = new DashboardService(new FakeGoalsView([]), new FakeRoadmapsView(), () => NOW);
     const dashboard = await service.getDashboard('user-1');
     expect(dashboard.generatedAt).toBe(NOW.toISOString());
   });
 
   it('derives nextAction from the same active/paused split it returns', async () => {
     const goals = [makeGoal({ id: 'p', status: 'paused', title: 'Needs a resume' })];
-    const service = new DashboardService(new FakeGoalsView(goals), () => NOW);
+    const service = new DashboardService(new FakeGoalsView(goals), new FakeRoadmapsView(), () => NOW);
     const dashboard = await service.getDashboard('user-1');
     expect(dashboard.nextAction.type).toBe('resume_goal');
     expect(dashboard.nextAction.goalId).toBe('p');
+  });
+
+  it('surfaces roadmaps and lets nextAction continue one for an active goal', async () => {
+    const goals = [makeGoal({ id: 'goal-1' })];
+    const roadmap: Roadmap = {
+      id: 'roadmap-1',
+      userId: 'user-1',
+      goalId: 'goal-1',
+      status: 'active',
+      milestones: [
+        {
+          id: 'm-1',
+          title: 'Milestone one',
+          description: '',
+          status: 'active',
+          actionSteps: [{ id: 'step-1', title: 'First step', description: '', status: 'pending' }],
+        },
+      ],
+      createdAt: NOW.toISOString(),
+      updatedAt: NOW.toISOString(),
+    };
+    const service = new DashboardService(new FakeGoalsView(goals), new FakeRoadmapsView([roadmap]), () => NOW);
+    const dashboard = await service.getDashboard('user-1');
+
+    expect(dashboard.roadmaps).toHaveLength(1);
+    expect(dashboard.nextAction.type).toBe('continue_roadmap');
+    expect(dashboard.nextAction.roadmapId).toBe('roadmap-1');
   });
 });

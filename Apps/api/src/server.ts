@@ -16,6 +16,7 @@ import { OnboardingService, InMemoryOnboardingRepository } from '@better-you/onb
 import { DashboardService } from '@better-you/dashboard';
 import { CheckInService, InMemoryCheckInRepository } from '@better-you/check-ins';
 import { ProgressService } from '@better-you/progress';
+import { RoadmapService, InMemoryRoadmapRepository, PlaceholderRoadmapGenerator } from '@better-you/roadmap';
 import { getEnv } from '@better-you/config';
 import { FileAuthProvider } from '../../../services/auth/src/fileAuthProvider';
 import { FileUserRepository } from '../../../services/auth/src/fileUserRepository';
@@ -24,6 +25,7 @@ import { FileGoalHistoryRepository } from '../../../services/goals/src/fileGoalH
 import { FileProfileRepository } from '../../../services/profile/src/fileProfileRepository';
 import { FileOnboardingRepository } from '../../../services/onboarding/src/fileOnboardingRepository';
 import { FileCheckInRepository } from '../../../services/check-ins/src/fileCheckInRepository';
+import { FileRoadmapRepository } from '../../../services/roadmap/src/fileRoadmapRepository';
 import { createAuthRouter } from './routes/auth';
 import { createMeRouter } from './routes/me';
 import { createGoalRouter } from './routes/goals';
@@ -34,6 +36,8 @@ import { createCheckInRouter } from './routes/checkIns';
 import { createGoalCheckInRouter } from './routes/goalCheckIns';
 import { createProgressRouter } from './routes/progress';
 import { createGoalProgressRouter } from './routes/goalProgress';
+import { createRoadmapRouter } from './routes/roadmap';
+import { createGoalRoadmapRouter } from './routes/goalRoadmap';
 import { errorHandler } from './middleware/errorHandler';
 
 export interface ServerDependencies {
@@ -44,6 +48,7 @@ export interface ServerDependencies {
   dashboardService: DashboardService;
   checkInService: CheckInService;
   progressService: ProgressService;
+  roadmapService: RoadmapService;
 }
 
 // No dataDir (the default - every existing test call site) means fresh,
@@ -62,6 +67,14 @@ export function createDefaultDependencies(dataDir?: string): ServerDependencies 
   const checkInService = dataDir
     ? new CheckInService(new FileCheckInRepository(path.join(dataDir, 'check-ins.json')), goalService)
     : new CheckInService(new InMemoryCheckInRepository(), goalService);
+  // goalService satisfies RoadmapService's GoalLookup structurally, same as
+  // Check-ins/Onboarding. PlaceholderRoadmapGenerator is the only
+  // RoadmapGenerator today (no AI provider/API key) - see ADR 0020.
+  const roadmapService = new RoadmapService(
+    dataDir ? new FileRoadmapRepository(path.join(dataDir, 'roadmaps.json')) : new InMemoryRoadmapRepository(),
+    goalService,
+    new PlaceholderRoadmapGenerator()
+  );
 
   return {
     authService: new AuthService(
@@ -80,13 +93,15 @@ export function createDefaultDependencies(dataDir?: string): ServerDependencies 
         : new InMemoryOnboardingRepository(),
       goalService
     ),
-    // goalService also satisfies GoalsView structurally - Dashboard is a
-    // read model assembled from real Goals data (ADR 0011).
-    dashboardService: new DashboardService(goalService),
+    // goalService/roadmapService also satisfy GoalsView/RoadmapsView
+    // structurally - Dashboard is a read model assembled from real
+    // Goals+Roadmap data (ADR 0011, extended by ADR 0020).
+    dashboardService: new DashboardService(goalService, roadmapService),
     checkInService,
     // checkInService satisfies CheckInsView structurally - Progress is a
     // deterministic read model derived from real Check-in data (ADR 0013).
     progressService: new ProgressService(checkInService),
+    roadmapService,
   };
 }
 
@@ -110,6 +125,8 @@ export function createServer(deps: ServerDependencies = createDefaultDependencie
   app.use('/api/v1/goals/:id/check-ins', createGoalCheckInRouter(deps.authService, deps.checkInService));
   app.use('/api/v1/progress', createProgressRouter(deps.authService, deps.progressService));
   app.use('/api/v1/goals/:id/progress', createGoalProgressRouter(deps.authService, deps.progressService));
+  app.use('/api/v1/roadmaps', createRoadmapRouter(deps.authService, deps.roadmapService));
+  app.use('/api/v1/goals/:id/roadmap', createGoalRoadmapRouter(deps.authService, deps.roadmapService));
 
   app.use(errorHandler);
 

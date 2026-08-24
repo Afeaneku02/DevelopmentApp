@@ -177,7 +177,7 @@ export default function GoalsScreen({ onOpenDashboard, onOpenProfile }: GoalsScr
           <div>
             <h1>Better You — Goals</h1>
             <p className="subtitle">
-              Signed in as <code>{user?.email}</code>. Goal Creation Core only — no roadmap or AI yet.
+              Signed in as <code>{user?.email}</code>. Roadmap steps here are placeholders — no AI yet.
             </p>
           </div>
           <div className="header-actions">

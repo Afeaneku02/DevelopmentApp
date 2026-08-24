@@ -6,6 +6,7 @@ import * as checkInsApi from '../api/checkInsApi';
 import * as goalsApi from '../api/goalsApi';
 import * as profileApi from '../api/profileApi';
 import * as progressApi from '../api/progressApi';
+import * as roadmapApi from '../api/roadmapApi';
 import { ApiError } from '../api/client';
 import { CATEGORY_LABELS } from '../constants/goalCategories';
 import ConsistencyMeter from '../components/ConsistencyMeter';
@@ -27,6 +28,7 @@ export default function DashboardScreen({ onOpenGoals, onOpenProfile }: Dashboar
   const [checkInError, setCheckInError] = useState<string | null>(null);
   const [summaries, setSummaries] = useState<Record<string, CheckInSummary>>({});
   const [progress, setProgress] = useState<OverallProgress | null>(null);
+  const [roadmapStepBusy, setRoadmapStepBusy] = useState(false);
 
   async function refresh(currentToken: string) {
     const [{ dashboard: loaded }, { progress: loadedProgress }] = await Promise.all([
@@ -71,6 +73,20 @@ export default function DashboardScreen({ onOpenGoals, onOpenProfile }: Dashboar
     }
   }
 
+  async function handleCompleteStep(roadmapId: string, actionStepId: string) {
+    if (!token) return;
+    setActionError(null);
+    setRoadmapStepBusy(true);
+    try {
+      await roadmapApi.completeActionStep(token, roadmapId, actionStepId);
+      await refresh(token);
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : 'Something went wrong');
+    } finally {
+      setRoadmapStepBusy(false);
+    }
+  }
+
   async function handleCheckIn(goalId: string, response: CheckInResponse) {
     if (!token) return;
     setCheckInError(null);
@@ -98,7 +114,8 @@ export default function DashboardScreen({ onOpenGoals, onOpenProfile }: Dashboar
     return <p className="loading">Loading…</p>;
   }
 
-  const { activeGoals, pausedGoals, completedGoalsCount, nextAction } = dashboard;
+  const { activeGoals, pausedGoals, completedGoalsCount, roadmaps, nextAction } = dashboard;
+  const roadmapByGoalId = Object.fromEntries(roadmaps.map((roadmap) => [roadmap.goalId, roadmap]));
 
   return (
     <div className="page">
@@ -106,7 +123,9 @@ export default function DashboardScreen({ onOpenGoals, onOpenProfile }: Dashboar
         <div className="header-row">
           <div>
             <h1>Welcome back{displayName ? `, ${displayName}` : ''}</h1>
-            <p className="subtitle">Here&apos;s where things stand. No roadmap or AI guidance yet — just your goals.</p>
+            <p className="subtitle">
+              Here&apos;s where things stand. Roadmap steps are placeholders for now — no AI guidance yet.
+            </p>
           </div>
           <div className="header-actions">
             <button className="profile-nav-button" onClick={onOpenGoals}>
@@ -131,6 +150,14 @@ export default function DashboardScreen({ onOpenGoals, onOpenProfile }: Dashboar
           </button>
         )}
         {nextAction.type === 'review_goal' && <button onClick={onOpenGoals}>View goals</button>}
+        {nextAction.type === 'continue_roadmap' && nextAction.roadmapId && nextAction.actionStepId && (
+          <button
+            onClick={() => handleCompleteStep(nextAction.roadmapId as string, nextAction.actionStepId as string)}
+            disabled={roadmapStepBusy}
+          >
+            Mark step done
+          </button>
+        )}
         {nextAction.type === 'add_goal' && <button onClick={onOpenGoals}>Add a goal</button>}
         {actionError && <p className="error">{actionError}</p>}
       </section>
@@ -192,6 +219,34 @@ export default function DashboardScreen({ onOpenGoals, onOpenProfile }: Dashboar
                       Skipped
                     </button>
                   </div>
+
+                  {roadmapByGoalId[goal.id] && (
+                    <div className="roadmap-panel">
+                      <p className="roadmap-panel-label">Roadmap (placeholder, not AI-generated)</p>
+                      {roadmapByGoalId[goal.id].milestones.map((milestone) => (
+                        <div key={milestone.id} className={`roadmap-milestone roadmap-milestone-${milestone.status}`}>
+                          <strong>{milestone.title}</strong>
+                          <ul className="roadmap-actionsteps">
+                            {milestone.actionSteps.map((step) => (
+                              <li key={step.id} className={`roadmap-actionstep roadmap-actionstep-${step.status}`}>
+                                <span>{step.title}</span>
+                                {step.status === 'pending' && milestone.status !== 'pending' && (
+                                  <button
+                                    type="button"
+                                    disabled={roadmapStepBusy}
+                                    onClick={() => handleCompleteStep(roadmapByGoalId[goal.id].id, step.id)}
+                                  >
+                                    Mark done
+                                  </button>
+                                )}
+                                {step.status === 'completed' && <span className="roadmap-actionstep-check">✓</span>}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </li>
               );
             })}

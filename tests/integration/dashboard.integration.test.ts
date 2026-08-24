@@ -1,11 +1,17 @@
 import { describe, it, expect } from 'vitest';
 import { DashboardService } from '@better-you/dashboard';
 import { GoalService, InMemoryGoalRepository, InMemoryGoalHistoryRepository } from '@better-you/goals';
+import { RoadmapService, InMemoryRoadmapRepository, PlaceholderRoadmapGenerator } from '@better-you/roadmap';
 
 function createServices() {
   const goalService = new GoalService(new InMemoryGoalRepository(), new InMemoryGoalHistoryRepository());
-  const dashboardService = new DashboardService(goalService);
-  return { goalService, dashboardService };
+  const roadmapService = new RoadmapService(
+    new InMemoryRoadmapRepository(),
+    goalService,
+    new PlaceholderRoadmapGenerator()
+  );
+  const dashboardService = new DashboardService(goalService, roadmapService);
+  return { goalService, roadmapService, dashboardService };
 }
 
 describe('Dashboard (integration)', () => {
@@ -49,5 +55,23 @@ describe('Dashboard (integration)', () => {
 
     const dashboardB = await dashboardService.getDashboard('user-2');
     expect(dashboardB.activeGoals).toEqual([]);
+  });
+
+  it('surfaces a real generated roadmap and lets nextAction continue it', async () => {
+    const { goalService, roadmapService, dashboardService } = createServices();
+    const userId = 'user-1';
+    const goal = await goalService.createGoal({
+      userId,
+      source: 'custom',
+      category: 'career',
+      title: 'Ship the Better You MVP',
+    });
+
+    const roadmap = await roadmapService.generateRoadmap(userId, goal.id);
+    const dashboard = await dashboardService.getDashboard(userId);
+
+    expect(dashboard.roadmaps.map((r) => r.id)).toEqual([roadmap.id]);
+    expect(dashboard.nextAction.type).toBe('continue_roadmap');
+    expect(dashboard.nextAction.roadmapId).toBe(roadmap.id);
   });
 });

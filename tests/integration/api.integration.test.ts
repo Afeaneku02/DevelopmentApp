@@ -774,4 +774,144 @@ describe('Better You API (integration)', () => {
       expect(res.body.progress.totalCheckIns).toBe(0);
     });
   });
+
+  describe('roadmap', () => {
+    async function signUpAndLogIn(email: string, password: string): Promise<string> {
+      await request(app).post('/api/v1/auth/signup').send({ email, password });
+      const login = await request(app).post('/api/v1/auth/login').send({ email, password });
+      return login.body.token as string;
+    }
+
+    async function createGoal(token: string, title = 'Ship the Better You MVP'): Promise<string> {
+      const res = await request(app)
+        .post('/api/v1/goals')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ category: 'career', source: 'custom', title });
+      return res.body.goal.id as string;
+    }
+
+    it('requires auth', async () => {
+      const get = await request(app).get('/api/v1/goals/some-id/roadmap');
+      expect(get.status).toBe(401);
+
+      const generate = await request(app).post('/api/v1/goals/some-id/roadmap');
+      expect(generate.status).toBe(401);
+    });
+
+    it('returns null before a roadmap is generated, then generates and fetches it', async () => {
+      const token = await signUpAndLogIn('jamie@example.com', 'first-goal-2026');
+      const goalId = await createGoal(token);
+
+      const before = await request(app)
+        .get(`/api/v1/goals/${goalId}/roadmap`)
+        .set('Authorization', `Bearer ${token}`);
+      expect(before.status).toBe(200);
+      expect(before.body.roadmap).toBeNull();
+
+      const generated = await request(app)
+        .post(`/api/v1/goals/${goalId}/roadmap`)
+        .set('Authorization', `Bearer ${token}`);
+      expect(generated.status).toBe(201);
+      expect(generated.body.roadmap.goalId).toBe(goalId);
+      expect(generated.body.roadmap.milestones.length).toBeGreaterThan(0);
+
+      const after = await request(app)
+        .get(`/api/v1/goals/${goalId}/roadmap`)
+        .set('Authorization', `Bearer ${token}`);
+      expect(after.body.roadmap.id).toBe(generated.body.roadmap.id);
+
+      const fetched = await request(app)
+        .get(`/api/v1/roadmaps/${generated.body.roadmap.id}`)
+        .set('Authorization', `Bearer ${token}`);
+      expect(fetched.status).toBe(200);
+      expect(fetched.body.roadmap.id).toBe(generated.body.roadmap.id);
+    });
+
+    it('rejects generating a second roadmap for the same goal', async () => {
+      const token = await signUpAndLogIn('jamie@example.com', 'first-goal-2026');
+      const goalId = await createGoal(token);
+
+      await request(app).post(`/api/v1/goals/${goalId}/roadmap`).set('Authorization', `Bearer ${token}`);
+      const second = await request(app)
+        .post(`/api/v1/goals/${goalId}/roadmap`)
+        .set('Authorization', `Bearer ${token}`);
+      expect(second.status).toBe(409);
+      expect(second.body.error.code).toBe('ROADMAP_ALREADY_EXISTS');
+    });
+
+    it('rejects generating a roadmap for a goal owned by another user', async () => {
+      const tokenA = await signUpAndLogIn('a@example.com', 'password-a1');
+      const tokenB = await signUpAndLogIn('b@example.com', 'password-b1');
+      const goalId = await createGoal(tokenA);
+
+      const res = await request(app)
+        .post(`/api/v1/goals/${goalId}/roadmap`)
+        .set('Authorization', `Bearer ${tokenB}`);
+      expect(res.status).toBe(404);
+      expect(res.body.error.code).toBe('GOAL_NOT_FOUND');
+    });
+
+    it('completes action steps and cascades to milestone/roadmap completion', async () => {
+      const token = await signUpAndLogIn('jamie@example.com', 'first-goal-2026');
+      const goalId = await createGoal(token);
+
+      const generated = await request(app)
+        .post(`/api/v1/goals/${goalId}/roadmap`)
+        .set('Authorization', `Bearer ${token}`);
+      const roadmapId = generated.body.roadmap.id as string;
+      const stepIds: string[] = generated.body.roadmap.milestones.flatMap(
+        (m: { actionSteps: { id: string }[] }) => m.actionSteps.map((s) => s.id)
+      );
+
+      let last;
+      for (const stepId of stepIds) {
+        last = await request(app)
+          .post(`/api/v1/roadmaps/${roadmapId}/steps/${stepId}/complete`)
+          .set('Authorization', `Bearer ${token}`);
+        expect(last.status).toBe(200);
+      }
+      expect(last!.body.roadmap.status).toBe('completed');
+    });
+
+    it('rejects completing a step in a future milestone before earlier ones are done', async () => {
+      const token = await signUpAndLogIn('jamie@example.com', 'first-goal-2026');
+      const goalId = await createGoal(token);
+      const generated = await request(app)
+        .post(`/api/v1/goals/${goalId}/roadmap`)
+        .set('Authorization', `Bearer ${token}`);
+      const futureStepId = generated.body.roadmap.milestones[1].actionSteps[0].id;
+
+      const res = await request(app)
+        .post(`/api/v1/roadmaps/${generated.body.roadmap.id}/steps/${futureStepId}/complete`)
+        .set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(409);
+      expect(res.body.error.code).toBe('ROADMAP_MILESTONE_NOT_ACTIVE');
+    });
+
+    it('rejects completing an unknown action step with 404', async () => {
+      const token = await signUpAndLogIn('jamie@example.com', 'first-goal-2026');
+      const goalId = await createGoal(token);
+      const generated = await request(app)
+        .post(`/api/v1/goals/${goalId}/roadmap`)
+        .set('Authorization', `Bearer ${token}`);
+
+      const res = await request(app)
+        .post(`/api/v1/roadmaps/${generated.body.roadmap.id}/steps/not-a-real-step/complete`)
+        .set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(404);
+      expect(res.body.error.code).toBe('ROADMAP_STEP_NOT_FOUND');
+    });
+
+    it("dashboard's nextAction continues a freshly generated roadmap", async () => {
+      const token = await signUpAndLogIn('jamie@example.com', 'first-goal-2026');
+      const goalId = await createGoal(token);
+      await request(app).post(`/api/v1/goals/${goalId}/roadmap`).set('Authorization', `Bearer ${token}`);
+
+      const dashboard = await request(app).get('/api/v1/dashboard').set('Authorization', `Bearer ${token}`);
+      expect(dashboard.status).toBe(200);
+      expect(dashboard.body.dashboard.roadmaps).toHaveLength(1);
+      expect(dashboard.body.dashboard.nextAction.type).toBe('continue_roadmap');
+      expect(dashboard.body.dashboard.nextAction.goalId).toBe(goalId);
+    });
+  });
 });
