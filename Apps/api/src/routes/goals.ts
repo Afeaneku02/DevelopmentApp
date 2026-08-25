@@ -2,11 +2,13 @@ import { Router } from 'express';
 import type { GoalCategory } from '@better-you/contracts';
 import type { AuthService } from '@better-you/auth';
 import type { GoalService } from '@better-you/goals';
+import type { ActivityService } from '@better-you/activity';
 import { requireAuth } from '../middleware/requireAuth';
 import { BadRequestError } from '../errors';
 import { expectString, optionalString } from '../validation';
+import { recordActivityBestEffort } from '../recordActivityBestEffort';
 
-export function createGoalRouter(authService: AuthService, goalService: GoalService): Router {
+export function createGoalRouter(authService: AuthService, goalService: GoalService, activityService: ActivityService): Router {
   const router = Router();
   router.use(requireAuth(authService));
 
@@ -37,6 +39,11 @@ export function createGoalRouter(authService: AuthService, goalService: GoalServ
           title: optionalString(body.title),
           description: optionalString(body.description),
         });
+        await recordActivityBestEffort(activityService, {
+          userId,
+          type: 'goal_created',
+          data: { goalId: goal.id, category: goal.category, source: goal.source },
+        });
         res.status(201).json({ goal });
         return;
       }
@@ -49,6 +56,11 @@ export function createGoalRouter(authService: AuthService, goalService: GoalServ
           category,
           title,
           description: optionalString(body.description),
+        });
+        await recordActivityBestEffort(activityService, {
+          userId,
+          type: 'goal_created',
+          data: { goalId: goal.id, category: goal.category, source: goal.source },
         });
         res.status(201).json({ goal });
         return;
@@ -92,6 +104,11 @@ export function createGoalRouter(authService: AuthService, goalService: GoalServ
   router.post('/:id/pause', async (req, res, next) => {
     try {
       const goal = await goalService.pauseGoal(req.user!.id, req.params.id);
+      await recordActivityBestEffort(activityService, {
+        userId: req.user!.id,
+        type: 'goal_paused',
+        data: { goalId: goal.id },
+      });
       res.status(200).json({ goal });
     } catch (err) {
       next(err);
@@ -101,6 +118,11 @@ export function createGoalRouter(authService: AuthService, goalService: GoalServ
   router.post('/:id/resume', async (req, res, next) => {
     try {
       const goal = await goalService.resumeGoal(req.user!.id, req.params.id);
+      await recordActivityBestEffort(activityService, {
+        userId: req.user!.id,
+        type: 'goal_resumed',
+        data: { goalId: goal.id },
+      });
       res.status(200).json({ goal });
     } catch (err) {
       next(err);
@@ -110,6 +132,11 @@ export function createGoalRouter(authService: AuthService, goalService: GoalServ
   router.post('/:id/complete', async (req, res, next) => {
     try {
       const goal = await goalService.completeGoal(req.user!.id, req.params.id);
+      await recordActivityBestEffort(activityService, {
+        userId: req.user!.id,
+        type: 'goal_completed',
+        data: { goalId: goal.id },
+      });
       res.status(200).json({ goal });
     } catch (err) {
       next(err);
@@ -119,6 +146,11 @@ export function createGoalRouter(authService: AuthService, goalService: GoalServ
   router.post('/:id/archive', async (req, res, next) => {
     try {
       const goal = await goalService.archiveGoal(req.user!.id, req.params.id);
+      await recordActivityBestEffort(activityService, {
+        userId: req.user!.id,
+        type: 'goal_archived',
+        data: { goalId: goal.id },
+      });
       res.status(200).json({ goal });
     } catch (err) {
       next(err);
