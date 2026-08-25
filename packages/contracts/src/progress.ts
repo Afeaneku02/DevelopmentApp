@@ -12,8 +12,23 @@ export interface ProgressSummary {
   trend: ProgressTrend;
 }
 
+// Purely factual counts/percentage derived directly from a Roadmap's own
+// milestone/action-step status fields (services/progress/src/roadmapProgressMath.ts)
+// - no interpretation, no AI, nothing beyond what's directly countable.
+export interface RoadmapProgress {
+  totalMilestones: number;
+  completedMilestones: number;
+  totalActionSteps: number;
+  completedActionSteps: number;
+  // 0-100, rounded to the nearest whole number.
+  stepCompletionPercentage: number;
+}
+
 export interface GoalProgress extends ProgressSummary {
   goalId: string;
+  // null when this goal has no roadmap yet (ADR 0020/0021's Roadmap domain
+  // is independent of Goals - not every goal has one).
+  roadmap: RoadmapProgress | null;
 }
 
 export interface OverallProgress extends ProgressSummary {

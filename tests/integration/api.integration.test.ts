@@ -753,6 +753,45 @@ describe('Better You API (integration)', () => {
       expect(res.body.progress.totalCheckIns).toBe(1);
     });
 
+    it('returns roadmap: null for a goal with no roadmap, then real counts once one exists and steps complete', async () => {
+      const token = await signUpAndLogIn('jamie@example.com', 'first-goal-2026');
+      const goalId = await createGoal(token);
+
+      const before = await request(app)
+        .get(`/api/v1/goals/${goalId}/progress`)
+        .set('Authorization', `Bearer ${token}`);
+      expect(before.status).toBe(200);
+      expect(before.body.progress.roadmap).toBeNull();
+
+      const generated = await request(app)
+        .post(`/api/v1/goals/${goalId}/roadmap`)
+        .set('Authorization', `Bearer ${token}`);
+      const roadmap = generated.body.roadmap;
+      const totalSteps = roadmap.milestones.flatMap((m: { actionSteps: unknown[] }) => m.actionSteps).length;
+
+      const afterGenerate = await request(app)
+        .get(`/api/v1/goals/${goalId}/progress`)
+        .set('Authorization', `Bearer ${token}`);
+      expect(afterGenerate.body.progress.roadmap).toEqual({
+        totalMilestones: roadmap.milestones.length,
+        completedMilestones: 0,
+        totalActionSteps: totalSteps,
+        completedActionSteps: 0,
+        stepCompletionPercentage: 0,
+      });
+
+      const firstStepId = roadmap.milestones[0].actionSteps[0].id;
+      await request(app)
+        .post(`/api/v1/roadmaps/${roadmap.id}/steps/${firstStepId}/complete`)
+        .set('Authorization', `Bearer ${token}`);
+
+      const afterComplete = await request(app)
+        .get(`/api/v1/goals/${goalId}/progress`)
+        .set('Authorization', `Bearer ${token}`);
+      expect(afterComplete.body.progress.roadmap.completedActionSteps).toBe(1);
+      expect(afterComplete.body.progress.roadmap.stepCompletionPercentage).toBe(Math.round((1 / totalSteps) * 100));
+    });
+
     it('rejects per-goal progress for a goal owned by another user', async () => {
       const tokenA = await signUpAndLogIn('a@example.com', 'password-a1');
       const tokenB = await signUpAndLogIn('b@example.com', 'password-b1');
@@ -924,6 +963,7 @@ describe('Better You API (integration)', () => {
       const goalB = await createGoal(token, 'Goal B');
       const goalC = await createGoal(token, 'Goal C');
 
+      // Only goal A gets a roadmap generated - B and C stay unroadmapped.
       const roadmapA = await request(app)
         .post(`/api/v1/goals/${goalA}/roadmap`)
         .set('Authorization', `Bearer ${token}`);
@@ -934,6 +974,7 @@ describe('Better You API (integration)', () => {
         .set('Authorization', `Bearer ${token}`);
       expect(checkB.body.roadmap).toBeNull();
 
+      // Now generate one for goal B too - independent from A's.
       const roadmapB = await request(app)
         .post(`/api/v1/goals/${goalB}/roadmap`)
         .set('Authorization', `Bearer ${token}`);

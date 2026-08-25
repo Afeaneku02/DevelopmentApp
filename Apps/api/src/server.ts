@@ -109,9 +109,11 @@ export function createDefaultDependencies(dataDir?: string): ServerDependencies 
     // Goals+Roadmap data (ADR 0011, extended by ADR 0020).
     dashboardService: new DashboardService(goalService, roadmapService),
     checkInService,
-    // checkInService satisfies CheckInsView structurally - Progress is a
-    // deterministic read model derived from real Check-in data (ADR 0013).
-    progressService: new ProgressService(checkInService),
+    // checkInService/roadmapService satisfy CheckInsView/RoadmapView
+    // structurally - Progress is a deterministic read model derived from
+    // real Check-in data (ADR 0013) and, per goal, real Roadmap data
+    // (ADR 0022).
+    progressService: new ProgressService(checkInService, roadmapService),
     roadmapService,
     activityService,
   };

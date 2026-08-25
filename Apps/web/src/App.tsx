@@ -7,9 +7,10 @@ import AuthScreen from './screens/AuthScreen';
 import DashboardScreen from './screens/DashboardScreen';
 import GoalsScreen from './screens/GoalsScreen';
 import ProfileScreen from './screens/ProfileScreen';
+import ActivityLogScreen from './screens/ActivityLogScreen';
 import OnboardingFlow from './screens/OnboardingFlow';
 
-type View = 'dashboard' | 'goals' | 'profile';
+type View = 'dashboard' | 'goals' | 'profile' | 'activity';
 
 function AppShell() {
   const { user, token } = useAuth();
@@ -60,7 +61,16 @@ function AppShell() {
   if (view === 'goals') {
     return <GoalsScreen onOpenDashboard={() => setView('dashboard')} onOpenProfile={() => setView('profile')} />;
   }
-  return <DashboardScreen onOpenGoals={() => setView('goals')} onOpenProfile={() => setView('profile')} />;
+  if (view === 'activity') {
+    return <ActivityLogScreen onBack={() => setView('dashboard')} />;
+  }
+  return (
+    <DashboardScreen
+      onOpenGoals={() => setView('goals')}
+      onOpenProfile={() => setView('profile')}
+      onOpenActivity={() => setView('activity')}
+    />
+  );
 }
 
 export default function App() {
