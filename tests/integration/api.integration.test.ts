@@ -913,5 +913,42 @@ describe('Better You API (integration)', () => {
       expect(dashboard.body.dashboard.nextAction.type).toBe('continue_roadmap');
       expect(dashboard.body.dashboard.nextAction.goalId).toBe(goalId);
     });
+
+    // Exercises exactly what the Goals screen now relies on: any goal - not
+    // just the one onboarding auto-generates a roadmap for - can get its own
+    // independent roadmap on demand, and each goal's roadmap state is
+    // fetched and reported independently of the others'.
+    it('lets a second and third goal each get their own independent roadmap', async () => {
+      const token = await signUpAndLogIn('jamie@example.com', 'first-goal-2026');
+      const goalA = await createGoal(token, 'Goal A');
+      const goalB = await createGoal(token, 'Goal B');
+      const goalC = await createGoal(token, 'Goal C');
+
+      const roadmapA = await request(app)
+        .post(`/api/v1/goals/${goalA}/roadmap`)
+        .set('Authorization', `Bearer ${token}`);
+      expect(roadmapA.status).toBe(201);
+
+      const checkB = await request(app)
+        .get(`/api/v1/goals/${goalB}/roadmap`)
+        .set('Authorization', `Bearer ${token}`);
+      expect(checkB.body.roadmap).toBeNull();
+
+      const roadmapB = await request(app)
+        .post(`/api/v1/goals/${goalB}/roadmap`)
+        .set('Authorization', `Bearer ${token}`);
+      expect(roadmapB.status).toBe(201);
+      expect(roadmapB.body.roadmap.id).not.toBe(roadmapA.body.roadmap.id);
+
+      const checkC = await request(app)
+        .get(`/api/v1/goals/${goalC}/roadmap`)
+        .set('Authorization', `Bearer ${token}`);
+      expect(checkC.body.roadmap).toBeNull();
+
+      const checkA = await request(app)
+        .get(`/api/v1/goals/${goalA}/roadmap`)
+        .set('Authorization', `Bearer ${token}`);
+      expect(checkA.body.roadmap.id).toBe(roadmapA.body.roadmap.id);
+    });
   });
 });

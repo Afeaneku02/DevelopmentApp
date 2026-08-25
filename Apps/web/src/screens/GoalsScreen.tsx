@@ -9,15 +9,18 @@ import {
   type GoalCheckInsView,
   type GoalProgress,
   type GoalStatus,
+  type Roadmap,
 } from '@better-you/contracts';
 import { useAuth } from '../auth/AuthContext';
 import * as goalsApi from '../api/goalsApi';
 import * as checkInsApi from '../api/checkInsApi';
 import * as progressApi from '../api/progressApi';
+import * as roadmapApi from '../api/roadmapApi';
 import { ApiError } from '../api/client';
 import { CATEGORY_LABELS } from '../constants/goalCategories';
 import ConsistencyMeter from '../components/ConsistencyMeter';
 import AddGoalForm from '../components/AddGoalForm';
+import RoadmapPanel from '../components/RoadmapPanel';
 
 const RESPONSE_LABELS: Record<CheckInResponse, string> = {
   yes: 'Yes',
@@ -85,9 +88,23 @@ export default function GoalsScreen({ onOpenDashboard, onOpenProfile }: GoalsScr
   const [historyLoadingGoalId, setHistoryLoadingGoalId] = useState<string | null>(null);
   const [historyError, setHistoryError] = useState<string | null>(null);
 
+  // null means "confirmed no roadmap yet" (so the Generate button shows);
+  // absent from the map means "not fetched yet" (neither button nor panel
+  // shows, resolves as soon as refreshGoals's roadmap fetch completes).
+  const [roadmapByGoal, setRoadmapByGoal] = useState<Record<string, Roadmap | null>>({});
+  const [roadmapActionGoalId, setRoadmapActionGoalId] = useState<string | null>(null);
+  const [roadmapError, setRoadmapError] = useState<string | null>(null);
+
   async function refreshGoals(currentToken: string) {
     const res = await goalsApi.listGoals(currentToken);
     setGoals(res.goals);
+    const pairs = await Promise.all(
+      res.goals.map(async (goal) => {
+        const { roadmap } = await roadmapApi.getRoadmapForGoal(currentToken, goal.id);
+        return [goal.id, roadmap] as const;
+      })
+    );
+    setRoadmapByGoal(Object.fromEntries(pairs));
   }
 
   useEffect(() => {
@@ -116,6 +133,34 @@ export default function GoalsScreen({ onOpenDashboard, onOpenProfile }: GoalsScr
       setActionError(err instanceof ApiError ? err.message : 'Something went wrong');
     } finally {
       setActionGoalId(null);
+    }
+  }
+
+  async function handleGenerateRoadmap(goalId: string) {
+    if (!token) return;
+    setRoadmapError(null);
+    setRoadmapActionGoalId(goalId);
+    try {
+      const { roadmap } = await roadmapApi.generateRoadmap(token, goalId);
+      setRoadmapByGoal((current) => ({ ...current, [goalId]: roadmap }));
+    } catch (err) {
+      setRoadmapError(err instanceof ApiError ? err.message : 'Something went wrong');
+    } finally {
+      setRoadmapActionGoalId(null);
+    }
+  }
+
+  async function handleCompleteRoadmapStep(goalId: string, roadmapId: string, actionStepId: string) {
+    if (!token) return;
+    setRoadmapError(null);
+    setRoadmapActionGoalId(goalId);
+    try {
+      const { roadmap } = await roadmapApi.completeActionStep(token, roadmapId, actionStepId);
+      setRoadmapByGoal((current) => ({ ...current, [goalId]: roadmap }));
+    } catch (err) {
+      setRoadmapError(err instanceof ApiError ? err.message : 'Something went wrong');
+    } finally {
+      setRoadmapActionGoalId(null);
     }
   }
 
@@ -267,6 +312,15 @@ export default function GoalsScreen({ onOpenDashboard, onOpenProfile }: GoalsScr
                         <button type="button" onClick={() => toggleHistory(goal.id)}>
                           {expandedGoalId === goal.id ? 'Hide history' : 'History'}
                         </button>
+                        {roadmapByGoal[goal.id] === null && (
+                          <button
+                            type="button"
+                            disabled={roadmapActionGoalId === goal.id}
+                            onClick={() => handleGenerateRoadmap(goal.id)}
+                          >
+                            Generate roadmap
+                          </button>
+                        )}
                       </div>
 
                       {expandedGoalId === goal.id && (
@@ -322,6 +376,16 @@ export default function GoalsScreen({ onOpenDashboard, onOpenProfile }: GoalsScr
                           ) : null}
                         </div>
                       )}
+
+                      {roadmapByGoal[goal.id] && (
+                        <RoadmapPanel
+                          roadmap={roadmapByGoal[goal.id] as Roadmap}
+                          onCompleteStep={(roadmapId, actionStepId) =>
+                            handleCompleteRoadmapStep(goal.id, roadmapId, actionStepId)
+                          }
+                          busy={roadmapActionGoalId === goal.id}
+                        />
+                      )}
                     </>
                   )}
                 </li>
@@ -331,6 +395,7 @@ export default function GoalsScreen({ onOpenDashboard, onOpenProfile }: GoalsScr
         )}
         {actionError && <p className="error">{actionError}</p>}
         {historyError && <p className="error">{historyError}</p>}
+        {roadmapError && <p className="error">{roadmapError}</p>}
       </section>
 
       <section className="create">

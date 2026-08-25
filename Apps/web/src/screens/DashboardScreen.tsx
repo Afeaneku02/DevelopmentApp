@@ -10,6 +10,7 @@ import * as roadmapApi from '../api/roadmapApi';
 import { ApiError } from '../api/client';
 import { CATEGORY_LABELS } from '../constants/goalCategories';
 import ConsistencyMeter from '../components/ConsistencyMeter';
+import RoadmapPanel from '../components/RoadmapPanel';
 
 interface DashboardScreenProps {
   onOpenGoals: () => void;
@@ -221,31 +222,11 @@ export default function DashboardScreen({ onOpenGoals, onOpenProfile }: Dashboar
                   </div>
 
                   {roadmapByGoalId[goal.id] && (
-                    <div className="roadmap-panel">
-                      <p className="roadmap-panel-label">Roadmap (placeholder, not AI-generated)</p>
-                      {roadmapByGoalId[goal.id].milestones.map((milestone) => (
-                        <div key={milestone.id} className={`roadmap-milestone roadmap-milestone-${milestone.status}`}>
-                          <strong>{milestone.title}</strong>
-                          <ul className="roadmap-actionsteps">
-                            {milestone.actionSteps.map((step) => (
-                              <li key={step.id} className={`roadmap-actionstep roadmap-actionstep-${step.status}`}>
-                                <span>{step.title}</span>
-                                {step.status === 'pending' && milestone.status !== 'pending' && (
-                                  <button
-                                    type="button"
-                                    disabled={roadmapStepBusy}
-                                    onClick={() => handleCompleteStep(roadmapByGoalId[goal.id].id, step.id)}
-                                  >
-                                    Mark done
-                                  </button>
-                                )}
-                                {step.status === 'completed' && <span className="roadmap-actionstep-check">✓</span>}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      ))}
-                    </div>
+                    <RoadmapPanel
+                      roadmap={roadmapByGoalId[goal.id]}
+                      onCompleteStep={handleCompleteStep}
+                      busy={roadmapStepBusy}
+                    />
                   )}
                 </li>
               );
