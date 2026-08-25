@@ -6,3 +6,4 @@ export * from './dashboard';
 export * from './checkIn';
 export * from './progress';
 export * from './roadmap';
+export * from './activity';

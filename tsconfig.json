@@ -35,6 +35,8 @@
       "@better-you/progress/*": ["services/progress/src/*"],
       "@better-you/roadmap": ["services/roadmap/src/index.ts"],
       "@better-you/roadmap/*": ["services/roadmap/src/*"],
+      "@better-you/activity": ["services/activity/src/index.ts"],
+      "@better-you/activity/*": ["services/activity/src/*"],
       "@better-you/api": ["apps/api/src/server.ts"],
       "@better-you/api/*": ["apps/api/src/*"]
     }

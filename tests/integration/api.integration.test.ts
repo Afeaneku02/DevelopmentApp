@@ -951,4 +951,101 @@ describe('Better You API (integration)', () => {
       expect(checkA.body.roadmap.id).toBe(roadmapA.body.roadmap.id);
     });
   });
+
+  describe('activity', () => {
+    async function signUpAndLogIn(email: string, password: string): Promise<string> {
+      await request(app).post('/api/v1/auth/signup').send({ email, password });
+      const login = await request(app).post('/api/v1/auth/login').send({ email, password });
+      return login.body.token as string;
+    }
+
+    it('requires auth', async () => {
+      const res = await request(app).get('/api/v1/activity');
+      expect(res.status).toBe(401);
+    });
+
+    it('returns an empty list for a brand-new user', async () => {
+      const token = await signUpAndLogIn('jamie@example.com', 'first-goal-2026');
+      const res = await request(app).get('/api/v1/activity').set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(200);
+      expect(res.body.events).toEqual([]);
+    });
+
+    it('records a chronological event for every real product action', async () => {
+      const token = await signUpAndLogIn('jamie@example.com', 'first-goal-2026');
+
+      const goal = await request(app)
+        .post('/api/v1/goals')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ category: 'career', source: 'custom', title: 'Ship the Better You MVP' });
+      const goalId = goal.body.goal.id as string;
+
+      await request(app).post(`/api/v1/goals/${goalId}/pause`).set('Authorization', `Bearer ${token}`);
+      await request(app).post(`/api/v1/goals/${goalId}/resume`).set('Authorization', `Bearer ${token}`);
+
+      const checkIn = await request(app)
+        .post('/api/v1/check-ins')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ goalId, response: 'yes', note: 'This note must never appear in an activity event' });
+
+      const roadmap = await request(app)
+        .post(`/api/v1/goals/${goalId}/roadmap`)
+        .set('Authorization', `Bearer ${token}`);
+      const firstStepId = roadmap.body.roadmap.milestones[0].actionSteps[0].id;
+      await request(app)
+        .post(`/api/v1/roadmaps/${roadmap.body.roadmap.id}/steps/${firstStepId}/complete`)
+        .set('Authorization', `Bearer ${token}`);
+
+      await request(app).post(`/api/v1/goals/${goalId}/complete`).set('Authorization', `Bearer ${token}`);
+      await request(app).post(`/api/v1/goals/${goalId}/archive`).set('Authorization', `Bearer ${token}`);
+
+      const res = await request(app).get('/api/v1/activity').set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(200);
+      expect(res.body.events.map((e: { type: string }) => e.type)).toEqual([
+        'goal_created',
+        'goal_paused',
+        'goal_resumed',
+        'check_in_recorded',
+        'roadmap_generated',
+        'roadmap_step_completed',
+        'goal_completed',
+        'goal_archived',
+      ]);
+
+      const created = res.body.events[0];
+      expect(created.data).toEqual({ goalId, category: 'career', source: 'custom' });
+
+      const checkInEvent = res.body.events[3];
+      expect(checkInEvent.data).toEqual({ goalId, checkInId: checkIn.body.checkIn.id, response: 'yes' });
+      expect(JSON.stringify(checkInEvent)).not.toContain('This note must never appear');
+
+      const roadmapGeneratedEvent = res.body.events[4];
+      expect(roadmapGeneratedEvent.data).toEqual({
+        goalId,
+        roadmapId: roadmap.body.roadmap.id,
+        milestoneCount: roadmap.body.roadmap.milestones.length,
+      });
+
+      const stepCompletedEvent = res.body.events[5];
+      expect(stepCompletedEvent.data).toEqual({
+        goalId,
+        roadmapId: roadmap.body.roadmap.id,
+        milestoneId: roadmap.body.roadmap.milestones[0].id,
+        actionStepId: firstStepId,
+      });
+    });
+
+    it('keeps activity events isolated between users', async () => {
+      const tokenA = await signUpAndLogIn('a@example.com', 'password-a1');
+      const tokenB = await signUpAndLogIn('b@example.com', 'password-b1');
+
+      await request(app)
+        .post('/api/v1/goals')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({ category: 'career', source: 'custom', title: "A's goal" });
+
+      const eventsB = await request(app).get('/api/v1/activity').set('Authorization', `Bearer ${tokenB}`);
+      expect(eventsB.body.events).toEqual([]);
+    });
+  });
 });
