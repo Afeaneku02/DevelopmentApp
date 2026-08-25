@@ -45,6 +45,22 @@ describe('ActivityService', () => {
     expect(events.map((e) => e.type)).toEqual(['goal_created', 'goal_paused']);
   });
 
+  it('preserves recording order for events with the exact same occurredAt timestamp', async () => {
+    // A frozen clock simulates two actions recorded within the same
+    // millisecond (plausible under real concurrent requests) - the ledger
+    // must still report them in the order they were actually recorded, not
+    // an arbitrary order, since a consumer reading this as a sequential
+    // narrative depends on that.
+    const service = new ActivityService(new InMemoryActivityEventRepository(), () => NOW);
+    await service.recordEvent({ userId: 'user-1', type: 'goal_created', data: { goalId: 'a', category: 'career', source: 'custom' } });
+    await service.recordEvent({ userId: 'user-1', type: 'goal_paused', data: { goalId: 'a' } });
+    await service.recordEvent({ userId: 'user-1', type: 'goal_resumed', data: { goalId: 'a' } });
+
+    const events = await service.listEvents('user-1');
+    expect(events.every((e) => e.occurredAt === NOW.toISOString())).toBe(true);
+    expect(events.map((e) => e.type)).toEqual(['goal_created', 'goal_paused', 'goal_resumed']);
+  });
+
   it('keeps events isolated between users', async () => {
     const service = new ActivityService(new InMemoryActivityEventRepository(), () => NOW);
     await service.recordEvent({ userId: 'user-1', type: 'goal_created', data: { goalId: 'a', category: 'career', source: 'custom' } });

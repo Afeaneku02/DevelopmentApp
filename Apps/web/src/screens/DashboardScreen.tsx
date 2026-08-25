@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { CheckInResponse, CheckInSummary, DashboardView, OverallProgress } from '@better-you/contracts';
+import type { CheckInResponse, CheckInSummary, DashboardView, GoalProgress, OverallProgress } from '@better-you/contracts';
 import { useAuth } from '../auth/AuthContext';
 import * as dashboardApi from '../api/dashboardApi';
 import * as checkInsApi from '../api/checkInsApi';
@@ -15,9 +15,10 @@ import RoadmapPanel from '../components/RoadmapPanel';
 interface DashboardScreenProps {
   onOpenGoals: () => void;
   onOpenProfile: () => void;
+  onOpenActivity: () => void;
 }
 
-export default function DashboardScreen({ onOpenGoals, onOpenProfile }: DashboardScreenProps) {
+export default function DashboardScreen({ onOpenGoals, onOpenProfile, onOpenActivity }: DashboardScreenProps) {
   const { token, signOut } = useAuth();
   const [dashboard, setDashboard] = useState<DashboardView | null>(null);
   const [displayName, setDisplayName] = useState('');
@@ -29,6 +30,7 @@ export default function DashboardScreen({ onOpenGoals, onOpenProfile }: Dashboar
   const [checkInError, setCheckInError] = useState<string | null>(null);
   const [summaries, setSummaries] = useState<Record<string, CheckInSummary>>({});
   const [progress, setProgress] = useState<OverallProgress | null>(null);
+  const [goalProgressByGoal, setGoalProgressByGoal] = useState<Record<string, GoalProgress>>({});
   const [roadmapStepBusy, setRoadmapStepBusy] = useState(false);
 
   async function refresh(currentToken: string) {
@@ -40,11 +42,15 @@ export default function DashboardScreen({ onOpenGoals, onOpenProfile }: Dashboar
     setProgress(loadedProgress);
     const pairs = await Promise.all(
       loaded.activeGoals.map(async (goal) => {
-        const view = await checkInsApi.listGoalCheckIns(currentToken, goal.id);
-        return [goal.id, view.summary] as const;
+        const [view, { progress: goalProgress }] = await Promise.all([
+          checkInsApi.listGoalCheckIns(currentToken, goal.id),
+          progressApi.getGoalProgress(currentToken, goal.id),
+        ]);
+        return [goal.id, view.summary, goalProgress] as const;
       })
     );
-    setSummaries(Object.fromEntries(pairs));
+    setSummaries(Object.fromEntries(pairs.map(([goalId, summary]) => [goalId, summary])));
+    setGoalProgressByGoal(Object.fromEntries(pairs.map(([goalId, , goalProgress]) => [goalId, goalProgress])));
   }
 
   useEffect(() => {
@@ -221,6 +227,16 @@ export default function DashboardScreen({ onOpenGoals, onOpenProfile }: Dashboar
                     </button>
                   </div>
 
+                  {goalProgressByGoal[goal.id]?.roadmap && (
+                    <p className="roadmap-progress-status">
+                      Roadmap: {goalProgressByGoal[goal.id].roadmap!.completedActionSteps}/
+                      {goalProgressByGoal[goal.id].roadmap!.totalActionSteps} steps (
+                      {goalProgressByGoal[goal.id].roadmap!.stepCompletionPercentage}%) ·{' '}
+                      {goalProgressByGoal[goal.id].roadmap!.completedMilestones}/
+                      {goalProgressByGoal[goal.id].roadmap!.totalMilestones} milestones
+                    </p>
+                  )}
+
                   {roadmapByGoalId[goal.id] && (
                     <RoadmapPanel
                       roadmap={roadmapByGoalId[goal.id]}
@@ -235,6 +251,10 @@ export default function DashboardScreen({ onOpenGoals, onOpenProfile }: Dashboar
           {checkInError && <p className="error">{checkInError}</p>}
         </section>
       )}
+
+      <button type="button" className="link-button dev-link" onClick={onOpenActivity}>
+        Dev: activity log
+      </button>
     </div>
   );
 }

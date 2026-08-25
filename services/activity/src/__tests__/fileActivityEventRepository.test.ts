@@ -42,6 +42,19 @@ describe('FileActivityEventRepository', () => {
     expect(events.map((e) => e.id)).toEqual(['event-1', 'event-2']);
   });
 
+  it('preserves insertion order for events with identical occurredAt timestamps, even after a restart', async () => {
+    const filePath = makeTempFilePath('activity.json');
+    const before = new FileActivityEventRepository(filePath);
+    const tiedTimestamp = '2026-01-01T00:00:00.000Z';
+    await before.create(makeEvent({ id: 'event-1', occurredAt: tiedTimestamp }));
+    await before.create(makeEvent({ id: 'event-2', occurredAt: tiedTimestamp }));
+    await before.create(makeEvent({ id: 'event-3', occurredAt: tiedTimestamp }));
+
+    const after = new FileActivityEventRepository(filePath);
+    const events = await after.listByUser('user-1');
+    expect(events.map((e) => e.id)).toEqual(['event-1', 'event-2', 'event-3']);
+  });
+
   it('scopes listByUser correctly after a restart', async () => {
     const filePath = makeTempFilePath('activity.json');
     const before = new FileActivityEventRepository(filePath);

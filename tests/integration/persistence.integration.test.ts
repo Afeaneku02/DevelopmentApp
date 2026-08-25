@@ -81,6 +81,18 @@ describe('Durable local persistence (integration)', () => {
     expect(checkIns.body.checkIns).toHaveLength(1);
     expect(checkIns.body.checkIns[0].response).toBe('yes');
     expect(checkIns.body.checkIns[0].note).toBe('First run done');
+
+    // The activity ledger (ADR 0021) is its own file-backed domain
+    // (activity.json) - never previously exercised through a real,
+    // from-scratch server restart, only through unit tests of
+    // FileActivityEventRepository in isolation.
+    const activity = await request(serverAfterRestart)
+      .get('/api/v1/activity')
+      .set('Authorization', `Bearer ${tokenAfter}`)
+      .expect(200);
+    expect(activity.body.events.map((e: { type: string }) => e.type)).toEqual(['goal_created', 'check_in_recorded']);
+    expect(activity.body.events[0].data).toEqual({ goalId, category: 'fitness', source: 'custom' });
+    expect(JSON.stringify(activity.body.events)).not.toContain('First run done');
   });
 
   it('a token issued before the restart is rejected after it - sessions are not persisted', async () => {

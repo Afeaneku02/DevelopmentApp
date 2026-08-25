@@ -136,6 +136,15 @@ export default function GoalsScreen({ onOpenDashboard, onOpenProfile }: GoalsScr
     }
   }
 
+  // If this goal's check-in history/progress panel has already been loaded
+  // (progressByGoal has an entry), keep its roadmap-progress line in sync -
+  // otherwise it would go stale until the user collapses and re-expands it.
+  async function refreshGoalProgressIfLoaded(currentToken: string, goalId: string) {
+    if (!progressByGoal[goalId]) return;
+    const { progress } = await progressApi.getGoalProgress(currentToken, goalId);
+    setProgressByGoal((current) => ({ ...current, [goalId]: progress }));
+  }
+
   async function handleGenerateRoadmap(goalId: string) {
     if (!token) return;
     setRoadmapError(null);
@@ -143,6 +152,7 @@ export default function GoalsScreen({ onOpenDashboard, onOpenProfile }: GoalsScr
     try {
       const { roadmap } = await roadmapApi.generateRoadmap(token, goalId);
       setRoadmapByGoal((current) => ({ ...current, [goalId]: roadmap }));
+      await refreshGoalProgressIfLoaded(token, goalId);
     } catch (err) {
       setRoadmapError(err instanceof ApiError ? err.message : 'Something went wrong');
     } finally {
@@ -157,6 +167,7 @@ export default function GoalsScreen({ onOpenDashboard, onOpenProfile }: GoalsScr
     try {
       const { roadmap } = await roadmapApi.completeActionStep(token, roadmapId, actionStepId);
       setRoadmapByGoal((current) => ({ ...current, [goalId]: roadmap }));
+      await refreshGoalProgressIfLoaded(token, goalId);
     } catch (err) {
       setRoadmapError(err instanceof ApiError ? err.message : 'Something went wrong');
     } finally {
@@ -325,6 +336,15 @@ export default function GoalsScreen({ onOpenDashboard, onOpenProfile }: GoalsScr
 
                       {expandedGoalId === goal.id && (
                         <div className="check-in-history">
+                          {progressByGoal[goal.id]?.roadmap && (
+                            <p className="roadmap-progress-status">
+                              Roadmap: {progressByGoal[goal.id].roadmap!.completedActionSteps}/
+                              {progressByGoal[goal.id].roadmap!.totalActionSteps} steps (
+                              {progressByGoal[goal.id].roadmap!.stepCompletionPercentage}%) ·{' '}
+                              {progressByGoal[goal.id].roadmap!.completedMilestones}/
+                              {progressByGoal[goal.id].roadmap!.totalMilestones} milestones
+                            </p>
+                          )}
                           {historyLoadingGoalId === goal.id ? (
                             <p className="loading">Loading check-ins…</p>
                           ) : historyByGoal[goal.id] ? (

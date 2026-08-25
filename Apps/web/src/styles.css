@@ -380,6 +380,34 @@ form button {
   padding: 0;
 }
 
+/* Internal/dev-only entry point (activity log) - deliberately quiet and set
+   apart from the real navigation actions in the header. */
+.dev-link {
+  display: block;
+  margin: 2rem 0 0;
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+}
+
+.activity-log-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.activity-log-table th,
+.activity-log-table td {
+  text-align: left;
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: top;
+}
+
+.activity-log-table code {
+  font-size: 0.8rem;
+  word-break: break-word;
+}
+
 /* ---- Profile screen ---- */
 
 .profile-page {
@@ -759,6 +787,12 @@ form button {
   margin: 0.55rem 0 0;
   color: var(--color-text-secondary);
   font-size: 0.9rem;
+}
+
+.roadmap-progress-status {
+  margin: 0.55rem 0 0;
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
 }
 
 .check-in-actions {
