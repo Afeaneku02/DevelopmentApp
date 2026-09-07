@@ -6,6 +6,7 @@ import {
   RoadmapStepNotFoundError,
 } from './errors';
 import { validateRoadmapDraft } from './roadmapValidation';
+import { buildRoadmapGenerationInput } from './roadmapGenerationInput';
 import type { RoadmapRepository } from './roadmapRepository';
 import type { RoadmapGenerator } from './roadmapGenerator';
 import type { GoalLookup } from './goalLookup';
@@ -34,8 +35,10 @@ export class RoadmapService {
     // - validated here before any of it is turned into persisted state, even
     // though today's generator is our own deterministic code. This is the
     // one place that rule is enforced, so a future real-AI RoadmapGenerator
-    // gets the same treatment automatically.
-    const draft = validateRoadmapDraft(await this.generator.generateRoadmap({ goal }));
+    // gets the same treatment automatically. Symmetrically, the generator
+    // never receives the full Goal - only the sanitized allowlist
+    // buildRoadmapGenerationInput() produces (see ADR 0023).
+    const draft = validateRoadmapDraft(await this.generator.generateRoadmap(buildRoadmapGenerationInput(goal)));
 
     const timestamp = this.now().toISOString();
     const milestones: Milestone[] = draft.milestones.map((milestone, index) => ({
