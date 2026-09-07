@@ -11,7 +11,7 @@ import type { RoadmapGenerator } from './roadmapGenerator';
 // AI-generated plan, not for a "does the shape work" placeholder.
 export class PlaceholderRoadmapGenerator implements RoadmapGenerator {
   async generateRoadmap(input: RoadmapGenerationInput): Promise<RoadmapDraft> {
-    const { title } = input.goal;
+    const { goalTitle: title } = input;
 
     return {
       milestones: [

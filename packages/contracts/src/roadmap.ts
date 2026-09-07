@@ -1,4 +1,4 @@
-import type { Goal } from './goal';
+import type { GoalCategory } from './goal';
 
 // Blueprint's future AI-generated "Create Plan" step (§6) fills this domain
 // in eventually; for now every Roadmap comes from a deterministic
@@ -54,9 +54,16 @@ export interface RoadmapDraft {
   milestones: MilestoneDraft[];
 }
 
-// What any RoadmapGenerator (placeholder today, external AI project later)
-// receives to produce a draft. Deliberately just the goal for now - no
-// Profile/preferences/history yet, since nothing currently consumes them.
+// What any RoadmapGenerator (placeholder today, an external AI provider
+// later - see ADR 0023) is allowed to receive. This is a deliberate
+// allowlist, not the Goal object itself: only a bounded, already-validated
+// title and a closed-set category enum cross this boundary. It never
+// includes userId, timestamps, status, source, or the goal's free-text
+// description - see services/roadmap/src/roadmapGenerationInput.ts for the
+// one function that builds this from a real Goal, and its tests for proof
+// nothing else can leak through. No Profile/preferences/history either,
+// since nothing currently consumes them.
 export interface RoadmapGenerationInput {
-  goal: Goal;
+  goalCategory: GoalCategory;
+  goalTitle: string;
 }
