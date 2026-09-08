@@ -3,6 +3,7 @@ export * from './goalLookup';
 export * from './roadmapGenerator';
 export * from './roadmapGenerationInput';
 export * from './placeholderRoadmapGenerator';
+export * from './httpRoadmapGenerator';
 export * from './roadmapRepository';
 export * from './roadmapService';
 export * from './roadmapValidation';

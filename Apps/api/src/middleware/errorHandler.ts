@@ -16,6 +16,7 @@ import { OnboardingAtFinalStepError, OnboardingValidationError } from '@better-y
 import { CheckInGoalNotActiveError, CheckInValidationError } from '@better-you/check-ins';
 import {
   RoadmapAlreadyExistsError,
+  RoadmapGeneratorUnavailableError,
   RoadmapMilestoneNotActiveError,
   RoadmapNotFoundError,
   RoadmapStepNotFoundError,
@@ -88,6 +89,15 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   }
   if (err instanceof RoadmapNotFoundError) {
     res.status(404).json({ error: { code: 'ROADMAP_NOT_FOUND', message: err.message } });
+    return;
+  }
+  if (err instanceof RoadmapGeneratorUnavailableError) {
+    // The roadmap generator (HttpRoadmapGenerator when configured - ADR
+    // 0024) failed to produce anything usable - a network error, timeout,
+    // non-2xx response, or unparsable body. Nothing was persisted; 502
+    // signals "the upstream dependency failed," distinct from 400/404/409
+    // client-caused errors elsewhere in this handler.
+    res.status(502).json({ error: { code: 'ROADMAP_GENERATOR_UNAVAILABLE', message: err.message } });
     return;
   }
   if (err instanceof InvalidCredentialsError || err instanceof SessionInvalidError) {

@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import request from 'supertest';
 import type { Express } from 'express';
-import { createServer } from '@better-you/api';
+import { createServer, createDefaultDependencies } from '@better-you/api';
+import { RoadmapService, InMemoryRoadmapRepository, HttpRoadmapGenerator } from '@better-you/roadmap';
 
 describe('Better You API (integration)', () => {
   let app: Express;
@@ -990,6 +991,44 @@ describe('Better You API (integration)', () => {
         .get(`/api/v1/goals/${goalA}/roadmap`)
         .set('Authorization', `Bearer ${token}`);
       expect(checkA.body.roadmap.id).toBe(roadmapA.body.roadmap.id);
+    });
+
+    // ADR 0024: when an optional HttpRoadmapGenerator is configured and it
+    // fails (network error here), the API must fail cleanly - a typed 502,
+    // not a raw 500 - and must not persist anything, so a retry against a
+    // healthy generator still works.
+    it('fails cleanly with 502 and persists nothing when the configured HTTP roadmap generator errors', async () => {
+      const deps = createDefaultDependencies();
+      const failingFetch = vi.fn().mockRejectedValue(new Error('simulated network failure'));
+      deps.roadmapService = new RoadmapService(
+        new InMemoryRoadmapRepository(),
+        deps.goalService,
+        new HttpRoadmapGenerator({ baseUrl: 'http://localhost:9999', fetchImpl: failingFetch })
+      );
+      const customApp = createServer(deps);
+
+      await request(customApp).post('/api/v1/auth/signup').send({ email: 'jamie@example.com', password: 'first-goal-2026' });
+      const login = await request(customApp)
+        .post('/api/v1/auth/login')
+        .send({ email: 'jamie@example.com', password: 'first-goal-2026' });
+      const token = login.body.token as string;
+
+      const goal = await request(customApp)
+        .post('/api/v1/goals')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ category: 'career', source: 'custom', title: 'Ship the MVP' });
+      const goalId = goal.body.goal.id as string;
+
+      const failed = await request(customApp)
+        .post(`/api/v1/goals/${goalId}/roadmap`)
+        .set('Authorization', `Bearer ${token}`);
+      expect(failed.status).toBe(502);
+      expect(failed.body.error.code).toBe('ROADMAP_GENERATOR_UNAVAILABLE');
+
+      const check = await request(customApp)
+        .get(`/api/v1/goals/${goalId}/roadmap`)
+        .set('Authorization', `Bearer ${token}`);
+      expect(check.body.roadmap).toBeNull();
     });
   });
 

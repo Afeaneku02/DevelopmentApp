@@ -16,7 +16,13 @@ import { OnboardingService, InMemoryOnboardingRepository } from '@better-you/onb
 import { DashboardService } from '@better-you/dashboard';
 import { CheckInService, InMemoryCheckInRepository } from '@better-you/check-ins';
 import { ProgressService } from '@better-you/progress';
-import { RoadmapService, InMemoryRoadmapRepository, PlaceholderRoadmapGenerator } from '@better-you/roadmap';
+import {
+  RoadmapService,
+  InMemoryRoadmapRepository,
+  PlaceholderRoadmapGenerator,
+  HttpRoadmapGenerator,
+  type RoadmapGenerator,
+} from '@better-you/roadmap';
 import { ActivityService, InMemoryActivityEventRepository } from '@better-you/activity';
 import { getEnv } from '@better-you/config';
 import { FileAuthProvider } from '../../../services/auth/src/fileAuthProvider';
@@ -72,12 +78,25 @@ export function createDefaultDependencies(dataDir?: string): ServerDependencies 
     ? new CheckInService(new FileCheckInRepository(path.join(dataDir, 'check-ins.json')), goalService)
     : new CheckInService(new InMemoryCheckInRepository(), goalService);
   // goalService satisfies RoadmapService's GoalLookup structurally, same as
-  // Check-ins/Onboarding. PlaceholderRoadmapGenerator is the only
-  // RoadmapGenerator today (no AI provider/API key) - see ADR 0020.
+  // Check-ins/Onboarding. PlaceholderRoadmapGenerator remains the default
+  // RoadmapGenerator (ADR 0020) - HttpRoadmapGenerator (ADR 0024) only
+  // activates when AI_MODELS_BASE_URL is explicitly configured, calling the
+  // separate DevelopmentApp_AI_Models project's `POST /roadmaps/generate`.
+  // With no config set, behavior is unchanged from before this option
+  // existed - this is an optional local integration, not a production
+  // dependency.
+  const aiModelsBaseUrl = getEnv('AI_MODELS_BASE_URL', '');
+  const aiModelsServiceToken = getEnv('AI_MODELS_SERVICE_TOKEN', '');
+  const roadmapGenerator: RoadmapGenerator = aiModelsBaseUrl
+    ? new HttpRoadmapGenerator({
+        baseUrl: aiModelsBaseUrl,
+        serviceToken: aiModelsServiceToken || undefined,
+      })
+    : new PlaceholderRoadmapGenerator();
   const roadmapService = new RoadmapService(
     dataDir ? new FileRoadmapRepository(path.join(dataDir, 'roadmaps.json')) : new InMemoryRoadmapRepository(),
     goalService,
-    new PlaceholderRoadmapGenerator()
+    roadmapGenerator
   );
   // Records the structured product-event stream the external AI project
   // will eventually consume (ADR 0021) - not validated the way Roadmap's

@@ -39,6 +39,13 @@ class FakeGenerator implements RoadmapGenerator {
   }
 }
 
+class ThrowingGenerator implements RoadmapGenerator {
+  constructor(private readonly error: Error) {}
+  async generateRoadmap(_input: RoadmapGenerationInput): Promise<RoadmapDraft> {
+    throw this.error;
+  }
+}
+
 function makeGoal(overrides: Partial<Goal>): Goal {
   return {
     id: 'goal-1',
@@ -102,6 +109,26 @@ describe('RoadmapService', () => {
   it('rejects an invalid generator draft instead of persisting it', async () => {
     const service = createService({ milestones: [] });
     await expect(service.generateRoadmap('user-1', 'goal-1')).rejects.toThrow(RoadmapValidationError);
+  });
+
+  it('persists nothing and allows a clean retry when the generator itself fails (network error, timeout, etc.)', async () => {
+    const repository = new InMemoryRoadmapRepository();
+    const failingService = new RoadmapService(
+      repository,
+      goals,
+      new ThrowingGenerator(new Error('simulated generator failure')),
+      () => NOW
+    );
+
+    await expect(failingService.generateRoadmap('user-1', 'goal-1')).rejects.toThrow('simulated generator failure');
+    expect(await repository.findByGoalId('goal-1')).toBeNull();
+
+    // A retry against the same goal must not be blocked by
+    // RoadmapAlreadyExistsError - nothing was actually saved from the
+    // failed attempt.
+    const workingService = new RoadmapService(repository, goals, new FakeGenerator(twoMilestoneDraft()), () => NOW);
+    const roadmap = await workingService.generateRoadmap('user-1', 'goal-1');
+    expect(roadmap.goalId).toBe('goal-1');
   });
 
   it('rejects fetching a roadmap owned by someone else', async () => {
