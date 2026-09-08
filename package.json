@@ -12,7 +12,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "verify": "npm run typecheck && npm test",
+    "verify": "npm run typecheck && npm run privacy:check && npm test",
+    "privacy:check": "node scripts/privacy-check.mjs",
     "dev:web": "npm run dev -w apps/web",
     "dev:api": "npm run dev -w apps/api",
     "reset-data": "node --env-file-if-exists=.env scripts/reset-data.mjs"
