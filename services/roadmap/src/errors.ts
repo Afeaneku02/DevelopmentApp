@@ -47,3 +47,18 @@ export class RoadmapMilestoneNotActiveError extends Error {
     this.name = 'RoadmapMilestoneNotActiveError';
   }
 }
+
+// Thrown by any network-based RoadmapGenerator (HttpRoadmapGenerator today -
+// see ADR 0024) when it cannot produce a draft at all: a network error, a
+// request timeout, a non-2xx response, or a response body that isn't valid
+// JSON. Distinct from RoadmapValidationError, which is for a response that
+// DID come back but whose roadmap shape was wrong - this is for not getting
+// a usable response in the first place. RoadmapService never catches
+// generator errors, so this propagates straight to the caller and nothing
+// is ever persisted: the repository is never touched before this point.
+export class RoadmapGeneratorUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'RoadmapGeneratorUnavailableError';
+  }
+}
