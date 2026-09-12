@@ -3,6 +3,7 @@ import request from 'supertest';
 import type { Express } from 'express';
 import { createServer, createDefaultDependencies } from '@better-you/api';
 import { RoadmapService, InMemoryRoadmapRepository, HttpRoadmapGenerator } from '@better-you/roadmap';
+import { MentorFeedbackService, HttpMentorFeedbackClient } from '@better-you/mentor-feedback';
 
 describe('Better You API (integration)', () => {
   let app: Express;
@@ -1126,6 +1127,255 @@ describe('Better You API (integration)', () => {
 
       const eventsB = await request(app).get('/api/v1/activity').set('Authorization', `Bearer ${tokenB}`);
       expect(eventsB.body.events).toEqual([]);
+    });
+  });
+
+  // ADR 0026: the read-side sibling of the roadmap HTTP-generator failure
+  // test above. Unlike that one, a failed/unconfigured mentor-feedback
+  // integration must always come back as a normal 200 with
+  // status:'unavailable' - never a 5xx - since this is a passive,
+  // supplementary read, not a user-initiated action.
+  describe('mentor feedback', () => {
+    async function signUpAndLogIn(email: string, password: string): Promise<string> {
+      await request(app).post('/api/v1/auth/signup').send({ email, password });
+      const login = await request(app).post('/api/v1/auth/login').send({ email, password });
+      return login.body.token as string;
+    }
+
+    function jsonResponse(status: number, body: unknown): Response {
+      return { ok: status >= 200 && status < 300, status, json: async () => body } as Response;
+    }
+
+    function withHttpMentorFeedbackClient(fetchImpl: ReturnType<typeof vi.fn>): Express {
+      const deps = createDefaultDependencies();
+      deps.mentorFeedbackService = new MentorFeedbackService(
+        new HttpMentorFeedbackClient({ baseUrl: 'http://localhost:9999', fetchImpl })
+      );
+      return createServer(deps);
+    }
+
+    it('requires auth', async () => {
+      const res = await request(app).get('/api/v1/mentor-feedback');
+      expect(res.status).toBe(401);
+    });
+
+    it('returns status "unavailable" when AI_MODELS_BASE_URL is not configured, and the rest of the app still works', async () => {
+      const token = await signUpAndLogIn('jamie@example.com', 'first-goal-2026');
+
+      const res = await request(app).get('/api/v1/mentor-feedback').set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(200);
+      expect(res.body.mentorFeedback.status).toBe('unavailable');
+      expect(res.body.mentorFeedback.feedback).toEqual([]);
+      expect(res.body.mentorFeedback.unavailableReason).toBeTruthy();
+
+      // the rest of Better You is unaffected by the integration being off
+      const goal = await request(app)
+        .post('/api/v1/goals')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ category: 'career', source: 'custom', title: 'Ship the Better You MVP' });
+      expect(goal.status).toBe(201);
+    });
+
+    it('returns real feedback when the AI Models server is configured and reachable', async () => {
+      const fetchImpl = vi.fn().mockResolvedValue(
+        jsonResponse(200, {
+          status: 'ready',
+          feedback: [
+            {
+              message: 'Your after-work routine has been consistent.',
+              confidence: 0.58,
+              grounded_in_belief_ids: ['bel_1'],
+              why: 'Grounded in 4 supporting observations.',
+              recommended_next_action: 'Consider one more session this week.',
+              risk_tier: 'low',
+            },
+          ],
+          needs_more_data_reason: null,
+        })
+      );
+      const customApp = withHttpMentorFeedbackClient(fetchImpl);
+      const token = await request(customApp)
+        .post('/api/v1/auth/signup')
+        .send({ email: 'jamie@example.com', password: 'first-goal-2026' })
+        .then(() =>
+          request(customApp).post('/api/v1/auth/login').send({ email: 'jamie@example.com', password: 'first-goal-2026' })
+        )
+        .then((login) => login.body.token as string);
+
+      const res = await request(customApp).get('/api/v1/mentor-feedback').set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.mentorFeedback.status).toBe('ready');
+      expect(res.body.mentorFeedback.feedback).toHaveLength(1);
+      expect(res.body.mentorFeedback.feedback[0]).toEqual({
+        message: 'Your after-work routine has been consistent.',
+        confidence: 0.58,
+        groundedInBeliefIds: ['bel_1'],
+        why: 'Grounded in 4 supporting observations.',
+        recommendedNextAction: 'Consider one more session this week.',
+        riskTier: 'low',
+      });
+    });
+
+    it('forwards ?contextKey= as the AI request\'s context_key', async () => {
+      const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(200, { status: 'needs_more_data', feedback: [], needs_more_data_reason: 'x' }));
+      const customApp = withHttpMentorFeedbackClient(fetchImpl);
+      const signUp = await request(customApp)
+        .post('/api/v1/auth/signup')
+        .send({ email: 'jamie@example.com', password: 'first-goal-2026' });
+      expect(signUp.status).toBe(201);
+      const login = await request(customApp)
+        .post('/api/v1/auth/login')
+        .send({ email: 'jamie@example.com', password: 'first-goal-2026' });
+      const token = login.body.token as string;
+
+      await request(customApp)
+        .get('/api/v1/mentor-feedback?contextKey=fitness_scheduling')
+        .set('Authorization', `Bearer ${token}`);
+
+      const requestedUrl = new URL(fetchImpl.mock.calls[0][0] as string);
+      expect(requestedUrl.searchParams.get('context_key')).toBe('fitness_scheduling');
+    });
+
+    it('returns status "unavailable" (never a 5xx) when the AI server returns a malformed response', async () => {
+      const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(200, { totally: 'not the expected shape' }));
+      const customApp = withHttpMentorFeedbackClient(fetchImpl);
+      const signUp = await request(customApp)
+        .post('/api/v1/auth/signup')
+        .send({ email: 'jamie@example.com', password: 'first-goal-2026' });
+      const login = await request(customApp)
+        .post('/api/v1/auth/login')
+        .send({ email: signUp.body.user.email, password: 'first-goal-2026' });
+      const token = login.body.token as string;
+
+      const res = await request(customApp).get('/api/v1/mentor-feedback').set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.mentorFeedback.status).toBe('unavailable');
+      expect(res.body.mentorFeedback.feedback).toEqual([]);
+    });
+
+    it('returns status "unavailable" (never a 5xx) when the AI server is unreachable', async () => {
+      const fetchImpl = vi.fn().mockRejectedValue(new Error('ECONNREFUSED'));
+      const customApp = withHttpMentorFeedbackClient(fetchImpl);
+      const signUp = await request(customApp)
+        .post('/api/v1/auth/signup')
+        .send({ email: 'jamie@example.com', password: 'first-goal-2026' });
+      const login = await request(customApp)
+        .post('/api/v1/auth/login')
+        .send({ email: signUp.body.user.email, password: 'first-goal-2026' });
+      const token = login.body.token as string;
+
+      const res = await request(customApp).get('/api/v1/mentor-feedback').set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.mentorFeedback.status).toBe('unavailable');
+    });
+
+    it('is read-only: repeated calls never change Goals, Check-ins, Profile, or Activity', async () => {
+      const fetchImpl = vi.fn().mockResolvedValue(
+        jsonResponse(200, { status: 'ready', feedback: [], needs_more_data_reason: null })
+      );
+      const customApp = withHttpMentorFeedbackClient(fetchImpl);
+      const signUp = await request(customApp)
+        .post('/api/v1/auth/signup')
+        .send({ email: 'jamie@example.com', password: 'first-goal-2026' });
+      const login = await request(customApp)
+        .post('/api/v1/auth/login')
+        .send({ email: signUp.body.user.email, password: 'first-goal-2026' });
+      const token = login.body.token as string;
+
+      const goal = await request(customApp)
+        .post('/api/v1/goals')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ category: 'career', source: 'custom', title: 'Ship the Better You MVP' });
+      const goalId = goal.body.goal.id as string;
+      await request(customApp)
+        .post('/api/v1/check-ins')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ goalId, response: 'yes' });
+
+      const before = {
+        goals: (await request(customApp).get('/api/v1/goals').set('Authorization', `Bearer ${token}`)).body,
+        checkIns: (await request(customApp).get('/api/v1/check-ins').set('Authorization', `Bearer ${token}`)).body,
+        profile: (await request(customApp).get('/api/v1/profile').set('Authorization', `Bearer ${token}`)).body,
+        activity: (await request(customApp).get('/api/v1/activity').set('Authorization', `Bearer ${token}`)).body,
+      };
+
+      await request(customApp).get('/api/v1/mentor-feedback').set('Authorization', `Bearer ${token}`);
+      await request(customApp)
+        .get('/api/v1/mentor-feedback?contextKey=fitness_scheduling')
+        .set('Authorization', `Bearer ${token}`);
+      await request(customApp).get('/api/v1/mentor-feedback').set('Authorization', `Bearer ${token}`);
+
+      const after = {
+        goals: (await request(customApp).get('/api/v1/goals').set('Authorization', `Bearer ${token}`)).body,
+        checkIns: (await request(customApp).get('/api/v1/check-ins').set('Authorization', `Bearer ${token}`)).body,
+        profile: (await request(customApp).get('/api/v1/profile').set('Authorization', `Bearer ${token}`)).body,
+        activity: (await request(customApp).get('/api/v1/activity').set('Authorization', `Bearer ${token}`)).body,
+      };
+
+      expect(after).toEqual(before);
+      // fetching mentor feedback is not itself a product action worth
+      // recording - it must not appear in the activity ledger.
+      expect(after.activity.events.map((e: { type: string }) => e.type)).not.toContain('mentor_feedback_viewed');
+    });
+
+    it('never sends private profile, check-in, or goal-description text to the AI endpoint', async () => {
+      const fetchImpl = vi.fn().mockResolvedValue(
+        jsonResponse(200, { status: 'ready', feedback: [], needs_more_data_reason: null })
+      );
+      const customApp = withHttpMentorFeedbackClient(fetchImpl);
+      const signUp = await request(customApp)
+        .post('/api/v1/auth/signup')
+        .send({ email: 'jamie@example.com', password: 'first-goal-2026' });
+      const login = await request(customApp)
+        .post('/api/v1/auth/login')
+        .send({ email: signUp.body.user.email, password: 'first-goal-2026' });
+      const token = login.body.token as string;
+
+      const secretGoalDescription = 'PRIVATE-GOAL-DESCRIPTION-should-never-leave-better-you';
+      const goal = await request(customApp)
+        .post('/api/v1/goals')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          category: 'career',
+          source: 'custom',
+          title: 'Ship the Better You MVP',
+          description: secretGoalDescription,
+        });
+      const goalId = goal.body.goal.id as string;
+
+      const secretCheckInNote = 'PRIVATE-CHECK-IN-NOTE-should-never-leave-better-you';
+      await request(customApp)
+        .post('/api/v1/check-ins')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ goalId, response: 'yes', note: secretCheckInNote });
+
+      const secretDisplayName = 'PRIVATE-DISPLAY-NAME-should-never-leave-better-you';
+      await request(customApp)
+        .patch('/api/v1/profile')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ displayName: secretDisplayName });
+
+      await request(customApp)
+        .get('/api/v1/mentor-feedback?contextKey=fitness_scheduling')
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+      const [requestedUrl, requestedInit] = fetchImpl.mock.calls[0];
+      // GET only - there is no request body for any of this to hide in.
+      expect(requestedInit.body).toBeUndefined();
+      expect(requestedInit.method).toBe('GET');
+      const wireText = String(requestedUrl);
+      for (const secret of [secretGoalDescription, secretCheckInNote, secretDisplayName]) {
+        expect(wireText).not.toContain(secret);
+      }
+      // only an opaque user id (path) and the policy-selector context key
+      // (query) may appear.
+      const parsed = new URL(wireText);
+      expect(parsed.pathname).toBe(`/users/${signUp.body.user.id}/mentor-feedback`);
+      expect([...parsed.searchParams.keys()]).toEqual(['context_key']);
     });
   });
 });

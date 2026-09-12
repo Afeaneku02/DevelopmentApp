@@ -7,3 +7,4 @@ export * from './checkIn';
 export * from './progress';
 export * from './roadmap';
 export * from './activity';
+export * from './mentorFeedback';

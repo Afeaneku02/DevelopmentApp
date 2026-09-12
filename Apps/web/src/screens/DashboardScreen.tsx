@@ -1,15 +1,24 @@
 import { useEffect, useState } from 'react';
-import type { CheckInResponse, CheckInSummary, DashboardView, GoalProgress, OverallProgress } from '@better-you/contracts';
+import type {
+  CheckInResponse,
+  CheckInSummary,
+  DashboardView,
+  GoalProgress,
+  MentorFeedbackResult,
+  OverallProgress,
+} from '@better-you/contracts';
 import { useAuth } from '../auth/AuthContext';
 import * as dashboardApi from '../api/dashboardApi';
 import * as checkInsApi from '../api/checkInsApi';
 import * as goalsApi from '../api/goalsApi';
+import * as mentorFeedbackApi from '../api/mentorFeedbackApi';
 import * as profileApi from '../api/profileApi';
 import * as progressApi from '../api/progressApi';
 import * as roadmapApi from '../api/roadmapApi';
 import { ApiError } from '../api/client';
 import { CATEGORY_LABELS } from '../constants/goalCategories';
 import ConsistencyMeter from '../components/ConsistencyMeter';
+import MentorFeedbackPanel from '../components/MentorFeedbackPanel';
 import RoadmapPanel from '../components/RoadmapPanel';
 
 interface DashboardScreenProps {
@@ -32,14 +41,24 @@ export default function DashboardScreen({ onOpenGoals, onOpenProfile, onOpenActi
   const [progress, setProgress] = useState<OverallProgress | null>(null);
   const [goalProgressByGoal, setGoalProgressByGoal] = useState<Record<string, GoalProgress>>({});
   const [roadmapStepBusy, setRoadmapStepBusy] = useState(false);
+  const [mentorFeedback, setMentorFeedback] = useState<MentorFeedbackResult | null>(null);
 
   async function refresh(currentToken: string) {
-    const [{ dashboard: loaded }, { progress: loadedProgress }] = await Promise.all([
-      dashboardApi.getDashboard(currentToken),
-      progressApi.getOverallProgress(currentToken),
-    ]);
+    // Mentor feedback (ADR 0026) loads alongside everything else Dashboard
+    // already fetches - a genuine HTTP-level failure here (e.g. an expired
+    // token) fails the whole load exactly like a Progress/Dashboard fetch
+    // failure already would. The AI Models integration being off or down is
+    // never such a failure: it comes back as a normal 200 with
+    // status:'unavailable', which MentorFeedbackPanel displays honestly.
+    const [{ dashboard: loaded }, { progress: loadedProgress }, { mentorFeedback: loadedMentorFeedback }] =
+      await Promise.all([
+        dashboardApi.getDashboard(currentToken),
+        progressApi.getOverallProgress(currentToken),
+        mentorFeedbackApi.getMentorFeedback(currentToken),
+      ]);
     setDashboard(loaded);
     setProgress(loadedProgress);
+    setMentorFeedback(loadedMentorFeedback);
     const pairs = await Promise.all(
       loaded.activeGoals.map(async (goal) => {
         const [view, { progress: goalProgress }] = await Promise.all([
@@ -118,7 +137,7 @@ export default function DashboardScreen({ onOpenGoals, onOpenProfile, onOpenActi
   }
 
   if (loading || !dashboard) {
-    return <p className="loading">Loading…</p>;
+    return <p className="loading">Loading...</p>;
   }
 
   const { activeGoals, pausedGoals, completedGoalsCount, roadmaps, nextAction } = dashboard;
@@ -131,7 +150,7 @@ export default function DashboardScreen({ onOpenGoals, onOpenProfile, onOpenActi
           <div>
             <h1>Welcome back{displayName ? `, ${displayName}` : ''}</h1>
             <p className="subtitle">
-              Here&apos;s where things stand. Roadmap steps are placeholders for now — no AI guidance yet.
+              Here&apos;s where things stand. Roadmap steps are placeholders for now -- no AI guidance yet.
             </p>
           </div>
           <div className="header-actions">
@@ -168,6 +187,8 @@ export default function DashboardScreen({ onOpenGoals, onOpenProfile, onOpenActi
         {nextAction.type === 'add_goal' && <button onClick={onOpenGoals}>Add a goal</button>}
         {actionError && <p className="error">{actionError}</p>}
       </section>
+
+      <MentorFeedbackPanel mentorFeedback={mentorFeedback} />
 
       <section className="dashboard-overview">
         <h2>Overview</h2>

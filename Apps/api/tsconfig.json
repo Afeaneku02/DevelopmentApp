@@ -28,7 +28,9 @@
       "@better-you/roadmap": ["../../services/roadmap/src/index.ts"],
       "@better-you/roadmap/*": ["../../services/roadmap/src/*"],
       "@better-you/activity": ["../../services/activity/src/index.ts"],
-      "@better-you/activity/*": ["../../services/activity/src/*"]
+      "@better-you/activity/*": ["../../services/activity/src/*"],
+      "@better-you/mentor-feedback": ["../../services/mentor-feedback/src/index.ts"],
+      "@better-you/mentor-feedback/*": ["../../services/mentor-feedback/src/*"]
     }
   },
   "include": ["src"]
