@@ -4,6 +4,7 @@ import type { Express } from 'express';
 import { createServer, createDefaultDependencies } from '@better-you/api';
 import { RoadmapService, InMemoryRoadmapRepository, HttpRoadmapGenerator } from '@better-you/roadmap';
 import { MentorFeedbackService, HttpMentorFeedbackClient } from '@better-you/mentor-feedback';
+import { ActivityService, InMemoryActivityEventRepository, HttpActivityEventSyncClient } from '@better-you/activity';
 
 describe('Better You API (integration)', () => {
   let app: Express;
@@ -1376,6 +1377,162 @@ describe('Better You API (integration)', () => {
       const parsed = new URL(wireText);
       expect(parsed.pathname).toBe(`/users/${signUp.body.user.id}/mentor-feedback`);
       expect([...parsed.searchParams.keys()]).toEqual(['context_key']);
+    });
+  });
+
+  describe('activity event sync', () => {
+    async function signUpAndLogIn(customApp: Express, email: string, password: string): Promise<string> {
+      await request(customApp).post('/api/v1/auth/signup').send({ email, password });
+      const login = await request(customApp).post('/api/v1/auth/login').send({ email, password });
+      return login.body.token as string;
+    }
+
+    function jsonResponse(status: number): Response {
+      return { ok: status >= 200 && status < 300, status, json: async () => ({}) } as Response;
+    }
+
+    function withHttpActivityEventSyncClient(fetchImpl: ReturnType<typeof vi.fn>, timeoutMs?: number): Express {
+      const deps = createDefaultDependencies();
+      deps.activityService = new ActivityService(
+        new InMemoryActivityEventRepository(),
+        undefined,
+        new HttpActivityEventSyncClient({ baseUrl: 'http://localhost:9999', fetchImpl, timeoutMs })
+      );
+      return createServer(deps);
+    }
+
+    it('does not call the AI Models server when AI_MODELS_BASE_URL is not configured, and goal creation still works', async () => {
+      const fetchSpy = vi.spyOn(globalThis, 'fetch');
+      const token = await signUpAndLogIn(app, 'jamie@example.com', 'first-goal-2026');
+
+      const goal = await request(app)
+        .post('/api/v1/goals')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ category: 'career', source: 'custom', title: 'Ship the Better You MVP' });
+
+      expect(goal.status).toBe(201);
+      expect(fetchSpy).not.toHaveBeenCalled();
+      fetchSpy.mockRestore();
+    });
+
+    it('forwards a created goal as a POST /events call matching the AI Models EventIn contract', async () => {
+      const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(201));
+      const customApp = withHttpActivityEventSyncClient(fetchImpl);
+      const token = await signUpAndLogIn(customApp, 'jamie@example.com', 'first-goal-2026');
+      const meRes = await request(customApp).get('/api/v1/me').set('Authorization', `Bearer ${token}`);
+      const userId = meRes.body.user.id as string;
+
+      const goal = await request(customApp)
+        .post('/api/v1/goals')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ category: 'career', source: 'custom', title: 'Ship the Better You MVP' });
+      expect(goal.status).toBe(201);
+
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+      const [url, init] = fetchImpl.mock.calls[0];
+      expect(url).toBe('http://localhost:9999/events');
+      expect(init.method).toBe('POST');
+      const body = JSON.parse(init.body);
+      expect(body).toEqual({
+        user_id: userId,
+        event_id: expect.any(String),
+        event_type: 'goal_created',
+        source: 'better_you',
+        timestamp: expect.any(String),
+        structured_data: { goalId: goal.body.goal.id, category: 'career', source: 'custom' },
+      });
+    });
+
+    it('still creates the goal (201) when the AI Models server is unreachable', async () => {
+      const fetchImpl = vi.fn().mockRejectedValue(new Error('ECONNREFUSED'));
+      const customApp = withHttpActivityEventSyncClient(fetchImpl);
+      const token = await signUpAndLogIn(customApp, 'jamie@example.com', 'first-goal-2026');
+
+      const goal = await request(customApp)
+        .post('/api/v1/goals')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ category: 'career', source: 'custom', title: 'Ship the Better You MVP' });
+
+      expect(goal.status).toBe(201);
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+    });
+
+    it('creates the goal quickly, without waiting out HttpActivityEventSyncClient\'s own timeout, when the AI server hangs', async () => {
+      // Simulates a real hung server: the fetch call only settles when
+      // HttpActivityEventSyncClient's own AbortController fires. Before
+      // this fix, ActivityService awaited this call, so a real product
+      // action (creating a goal) could take up to that timeout - 10s by
+      // the old default. It must now return almost immediately regardless
+      // of how long the sync client's own timeout is set to.
+      const fetchImpl = vi.fn().mockImplementation(
+        (_url: string, init: RequestInit) =>
+          new Promise((_resolve, reject) => {
+            init.signal?.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })));
+          })
+      );
+      const customApp = withHttpActivityEventSyncClient(fetchImpl, 2000);
+      const token = await signUpAndLogIn(customApp, 'jamie@example.com', 'first-goal-2026');
+
+      const startedAt = Date.now();
+      const goal = await request(customApp)
+        .post('/api/v1/goals')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ category: 'career', source: 'custom', title: 'Ship the Better You MVP' });
+      const elapsedMs = Date.now() - startedAt;
+
+      expect(goal.status).toBe(201);
+      expect(elapsedMs).toBeLessThan(500);
+    });
+
+    it('still creates the goal (201) when the AI Models server rejects the event with a non-2xx response', async () => {
+      const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(422));
+      const customApp = withHttpActivityEventSyncClient(fetchImpl);
+      const token = await signUpAndLogIn(customApp, 'jamie@example.com', 'first-goal-2026');
+
+      const goal = await request(customApp)
+        .post('/api/v1/goals')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ category: 'career', source: 'custom', title: 'Ship the Better You MVP' });
+
+      expect(goal.status).toBe(201);
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+    });
+
+    it('never sends private goal-description or check-in-note text to the AI events endpoint', async () => {
+      const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(201));
+      const customApp = withHttpActivityEventSyncClient(fetchImpl);
+      const token = await signUpAndLogIn(customApp, 'jamie@example.com', 'first-goal-2026');
+
+      const secretGoalDescription = 'PRIVATE-GOAL-DESCRIPTION-should-never-leave-better-you';
+      const goal = await request(customApp)
+        .post('/api/v1/goals')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          category: 'career',
+          source: 'custom',
+          title: 'Ship the Better You MVP',
+          description: secretGoalDescription,
+        });
+      const goalId = goal.body.goal.id as string;
+
+      const secretCheckInNote = 'PRIVATE-CHECK-IN-NOTE-should-never-leave-better-you';
+      await request(customApp)
+        .post('/api/v1/check-ins')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ goalId, response: 'yes', note: secretCheckInNote });
+
+      expect(fetchImpl).toHaveBeenCalledTimes(2);
+      const sentBodies = fetchImpl.mock.calls.map(([, init]) => init.body as string);
+      for (const secret of [secretGoalDescription, secretCheckInNote]) {
+        for (const sentBody of sentBodies) {
+          expect(sentBody).not.toContain(secret);
+        }
+      }
+      // and no raw_content field at all - ActivityEvent never carries free
+      // text for one to appear in.
+      for (const sentBody of sentBodies) {
+        expect(JSON.parse(sentBody)).not.toHaveProperty('raw_content');
+      }
     });
   });
 });

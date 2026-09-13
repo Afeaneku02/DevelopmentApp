@@ -23,7 +23,13 @@ import {
   HttpRoadmapGenerator,
   type RoadmapGenerator,
 } from '@better-you/roadmap';
-import { ActivityService, InMemoryActivityEventRepository } from '@better-you/activity';
+import {
+  ActivityService,
+  InMemoryActivityEventRepository,
+  HttpActivityEventSyncClient,
+  NoopActivityEventSyncClient,
+  type ActivityEventSyncClient,
+} from '@better-you/activity';
 import {
   MentorFeedbackService,
   HttpMentorFeedbackClient,
@@ -106,12 +112,29 @@ export function createDefaultDependencies(dataDir?: string): ServerDependencies 
     goalService,
     roadmapGenerator
   );
+  // Write-side sibling of the roadmap/mentor-feedback integrations above,
+  // reusing the same AI_MODELS_BASE_URL/AI_MODELS_SERVICE_TOKEN config, all
+  // three pointing at the same DevelopmentApp_AI_Models server (ADR 0027).
+  // NoopActivityEventSyncClient remains the default with no config set,
+  // with no behavior change. Like HttpMentorFeedbackClient and unlike
+  // HttpRoadmapGenerator, HttpActivityEventSyncClient never throws - this
+  // is best-effort telemetry forwarding, not a second source of truth;
+  // Better You's own ActivityEventRepository (below) remains the source of
+  // truth for the activity ledger either way.
+  const activityEventSyncClient: ActivityEventSyncClient = aiModelsBaseUrl
+    ? new HttpActivityEventSyncClient({
+        baseUrl: aiModelsBaseUrl,
+        serviceToken: aiModelsServiceToken || undefined,
+      })
+    : new NoopActivityEventSyncClient();
   // Records the structured product-event stream the external AI project
-  // will eventually consume (ADR 0021) - not validated the way Roadmap's
-  // generator output is, since every caller here is our own trusted route
-  // code, not an external client.
+  // consumes as its input signal (ADR 0021, extended by ADR 0027) - not
+  // validated the way Roadmap's generator output is, since every caller
+  // here is our own trusted route code, not an external client.
   const activityService = new ActivityService(
-    dataDir ? new FileActivityEventRepository(path.join(dataDir, 'activity.json')) : new InMemoryActivityEventRepository()
+    dataDir ? new FileActivityEventRepository(path.join(dataDir, 'activity.json')) : new InMemoryActivityEventRepository(),
+    undefined,
+    activityEventSyncClient
   );
   // Read-side sibling of the roadmap generator integration above, reusing
   // the same AI_MODELS_BASE_URL/AI_MODELS_SERVICE_TOKEN config - both point
