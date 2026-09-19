@@ -940,6 +940,98 @@ form button {
   font-weight: 600;
 }
 
+/* ---- Mentor feedback (optional local AI integration, ADR 0026) ---- */
+
+.mentor-feedback-panel {
+  margin-top: 1.25rem;
+  padding: 1rem 1.25rem;
+  border-radius: 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-card);
+}
+
+.mentor-feedback-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-secondary);
+  margin: 0 0 0.6rem;
+}
+
+.mentor-feedback-empty {
+  color: var(--color-text-secondary);
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.mentor-feedback-items {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.mentor-feedback-item {
+  padding: 0.75rem 0.85rem;
+  border-radius: 10px;
+  background: var(--color-surface-warm);
+  border: 1px solid var(--color-border);
+}
+
+.mentor-feedback-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+.mentor-feedback-risk {
+  margin-bottom: 0;
+}
+
+.mentor-feedback-risk-low {
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
+}
+
+.mentor-feedback-risk-medium {
+  background: var(--color-warning-bg);
+  color: var(--color-warning-text);
+}
+
+.mentor-feedback-risk-high {
+  background: var(--color-error-bg);
+  color: var(--color-error-text);
+}
+
+.mentor-feedback-confidence {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.mentor-feedback-message {
+  margin: 0 0 0.4rem;
+  color: var(--color-text-primary);
+}
+
+.mentor-feedback-next-action {
+  margin: 0 0 0.4rem;
+  color: var(--color-sky-700);
+  font-weight: 600;
+}
+
+.mentor-feedback-why {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+}
+
 .response-badge {
   display: inline-block;
   font-size: 0.7rem;

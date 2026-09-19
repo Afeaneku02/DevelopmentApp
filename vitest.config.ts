@@ -16,6 +16,7 @@ export default defineConfig({
       '@better-you/progress': path.resolve(__dirname, 'services/progress/src/index.ts'),
       '@better-you/roadmap': path.resolve(__dirname, 'services/roadmap/src/index.ts'),
       '@better-you/activity': path.resolve(__dirname, 'services/activity/src/index.ts'),
+      '@better-you/mentor-feedback': path.resolve(__dirname, 'services/mentor-feedback/src/index.ts'),
       '@better-you/api': path.resolve(__dirname, 'apps/api/src/server.ts'),
     },
   },
