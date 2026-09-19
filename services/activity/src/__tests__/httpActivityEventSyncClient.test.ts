@@ -94,6 +94,15 @@ const EXPECTED_STRUCTURED_DATA_BY_TYPE: Record<ActivityEventType, Record<string,
 // ActivityEvent - it is the payload leaving the process that matters here.
 const BANNED_KEYS = ['title', 'description', 'note', 'notes', 'text', 'message', 'prompt', 'content', 'summary', 'body'];
 
+// A successful sync() now also fires the ADR 0028 processing trigger (a
+// second, best-effort POST /users/{userId}/process) - these tests only
+// care about the /events call, so this filters that trigger out rather
+// than asserting a raw total call count. activityEventProcessingTrigger.test.ts
+// covers the processing trigger itself in isolation.
+function eventsCalls(fetchImpl: ReturnType<typeof vi.fn>): any[][] {
+  return fetchImpl.mock.calls.filter((call: any[]) => typeof call[0] === 'string' && call[0].endsWith('/events'));
+}
+
 describe('HttpActivityEventSyncClient', () => {
   const eventTypes = Object.keys(SAMPLE_EVENT_BY_TYPE) as ActivityEventType[];
 
@@ -103,8 +112,8 @@ describe('HttpActivityEventSyncClient', () => {
 
     await client.sync(SAMPLE_EVENT_BY_TYPE[type]);
 
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchImpl.mock.calls[0];
+    expect(eventsCalls(fetchImpl)).toHaveLength(1);
+    const [url, init] = eventsCalls(fetchImpl)[0];
     expect(url).toBe('http://localhost:8100/events');
     expect(init.method).toBe('POST');
     expect(init.headers['Content-Type']).toBe('application/json');

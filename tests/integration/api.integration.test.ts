@@ -1391,6 +1391,15 @@ describe('Better You API (integration)', () => {
       return { ok: status >= 200 && status < 300, status, json: async () => ({}) } as Response;
     }
 
+    // A successful /events call now also fires the ADR 0028 processing
+    // trigger (a second, best-effort POST /users/{userId}/process against
+    // the same fetchImpl mock) - these tests only care about the /events
+    // calls, so this filters that trigger out rather than asserting a raw
+    // total call count.
+    function eventsCalls(fetchImpl: ReturnType<typeof vi.fn>): any[][] {
+      return fetchImpl.mock.calls.filter((call: any[]) => typeof call[0] === 'string' && call[0].endsWith('/events'));
+    }
+
     function withHttpActivityEventSyncClient(fetchImpl: ReturnType<typeof vi.fn>, timeoutMs?: number): Express {
       const deps = createDefaultDependencies();
       deps.activityService = new ActivityService(
@@ -1428,8 +1437,8 @@ describe('Better You API (integration)', () => {
         .send({ category: 'career', source: 'custom', title: 'Ship the Better You MVP' });
       expect(goal.status).toBe(201);
 
-      expect(fetchImpl).toHaveBeenCalledTimes(1);
-      const [url, init] = fetchImpl.mock.calls[0];
+      expect(eventsCalls(fetchImpl)).toHaveLength(1);
+      const [url, init] = eventsCalls(fetchImpl)[0];
       expect(url).toBe('http://localhost:9999/events');
       expect(init.method).toBe('POST');
       const body = JSON.parse(init.body);
@@ -1521,8 +1530,9 @@ describe('Better You API (integration)', () => {
         .set('Authorization', `Bearer ${token}`)
         .send({ goalId, response: 'yes', note: secretCheckInNote });
 
-      expect(fetchImpl).toHaveBeenCalledTimes(2);
-      const sentBodies = fetchImpl.mock.calls.map(([, init]) => init.body as string);
+      const eventCalls = eventsCalls(fetchImpl);
+      expect(eventCalls).toHaveLength(2);
+      const sentBodies = eventCalls.map(([, init]) => (init as RequestInit).body as string);
       for (const secret of [secretGoalDescription, secretCheckInNote]) {
         for (const sentBody of sentBodies) {
           expect(sentBody).not.toContain(secret);
