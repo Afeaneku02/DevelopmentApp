@@ -22,6 +22,7 @@ import {
   RoadmapStepNotFoundError,
   RoadmapValidationError,
 } from '@better-you/roadmap';
+import { MentorGuidanceValidationError } from '@better-you/mentor-feedback';
 import { BadRequestError } from '../errors';
 
 // Blueprint §2: consistent error envelope. Never leak internal error details
@@ -35,7 +36,12 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
     res.status(400).json({ error: { code: 'BAD_REQUEST', message: err.message } });
     return;
   }
-  if (err instanceof AuthValidationError || err instanceof GoalValidationError || err instanceof ProfileValidationError) {
+  if (
+    err instanceof AuthValidationError ||
+    err instanceof GoalValidationError ||
+    err instanceof ProfileValidationError ||
+    err instanceof MentorGuidanceValidationError
+  ) {
     res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: err.message, field: err.field } });
     return;
   }

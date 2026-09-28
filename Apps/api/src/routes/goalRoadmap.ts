@@ -43,5 +43,15 @@ export function createGoalRoadmapRouter(
     }
   });
 
+  router.post('/mentor-actions', async (req, res, next) => {
+    try {
+      const { id } = req.params as { id: string };
+      const roadmap = await roadmapService.addMentorAction(req.user!.id, id, req.body?.action);
+      res.status(200).json({ roadmap });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   return router;
 }

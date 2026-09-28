@@ -19,6 +19,7 @@ import { ApiError } from '../api/client';
 import { CATEGORY_LABELS } from '../constants/goalCategories';
 import ConsistencyMeter from '../components/ConsistencyMeter';
 import MentorFeedbackPanel from '../components/MentorFeedbackPanel';
+import MentorGuidancePanel from '../components/MentorGuidancePanel';
 import RoadmapPanel from '../components/RoadmapPanel';
 
 interface DashboardScreenProps {
@@ -265,6 +266,8 @@ export default function DashboardScreen({ onOpenGoals, onOpenProfile, onOpenActi
                       busy={roadmapStepBusy}
                     />
                   )}
+
+                  {token && <MentorGuidancePanel token={token} goalId={goal.id} onPlanChanged={() => refresh(token)} />}
                 </li>
               );
             })}
