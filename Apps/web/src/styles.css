@@ -1032,6 +1032,106 @@ form button {
   color: var(--color-text-secondary);
 }
 
+/* User-triggered mentor guidance per goal (ADR 0029). */
+.mentor-guidance {
+  margin-top: 0.85rem;
+}
+
+.mentor-guidance-body {
+  margin-top: 0.6rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 10px;
+  background: var(--color-surface-warm);
+  border: 1px solid var(--color-border);
+}
+
+.mentor-guidance-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-secondary);
+  margin: 0 0 0.5rem;
+}
+
+.mentor-guidance-summary,
+.mentor-guidance-note {
+  margin: 0 0 0.5rem;
+  color: var(--color-text-primary);
+  font-size: 0.92rem;
+}
+
+.mentor-guidance-question {
+  margin: 0;
+  color: var(--color-sky-700);
+  font-size: 0.9rem;
+}
+
+.mentor-guidance-items {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.5rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.mentor-guidance-action {
+  margin: 0 0 0.2rem;
+  color: var(--color-sky-700);
+  font-weight: 600;
+}
+
+.mentor-guidance-reason,
+.mentor-guidance-code {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+}
+
+.mentor-guidance-turns {
+  list-style: none;
+  padding: 0;
+  margin: 0.6rem 0 0;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.mentor-guidance-reply-echo {
+  margin: 0.15rem 0 0;
+  font-size: 0.9rem;
+  color: var(--color-text-primary);
+}
+
+.mentor-guidance-reply {
+  margin-top: 0.6rem;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.mentor-guidance-reply .mentor-guidance-label {
+  margin: 0;
+}
+
+.mentor-guidance-reply textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  padding: 0.5rem 0.6rem;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  resize: vertical;
+}
+
+.mentor-guidance-reply button {
+  justify-self: start;
+}
+
+.mentor-guidance-error {
+  color: var(--color-error-text);
+}
+
 .response-badge {
   display: inline-block;
   font-size: 0.7rem;

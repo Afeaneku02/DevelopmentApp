@@ -35,6 +35,10 @@ import {
   HttpMentorFeedbackClient,
   UnavailableMentorFeedbackClient,
   type MentorFeedbackClient,
+  MentorGuidanceService,
+  HttpMentorGuidanceClient,
+  UnavailableMentorGuidanceClient,
+  type MentorGuidanceClient,
 } from '@better-you/mentor-feedback';
 import { getEnv } from '@better-you/config';
 import { FileAuthProvider } from '../../../services/auth/src/fileAuthProvider';
@@ -60,6 +64,7 @@ import { createRoadmapRouter } from './routes/roadmap';
 import { createGoalRoadmapRouter } from './routes/goalRoadmap';
 import { createActivityRouter } from './routes/activity';
 import { createMentorFeedbackRouter } from './routes/mentorFeedback';
+import { createMentorGuidanceRouter } from './routes/mentorGuidance';
 import { errorHandler } from './middleware/errorHandler';
 
 export interface ServerDependencies {
@@ -73,6 +78,7 @@ export interface ServerDependencies {
   roadmapService: RoadmapService;
   activityService: ActivityService;
   mentorFeedbackService: MentorFeedbackService;
+  mentorGuidanceService: MentorGuidanceService;
 }
 
 // No dataDir (the default - every existing test call site) means fresh,
@@ -151,6 +157,19 @@ export function createDefaultDependencies(dataDir?: string): ServerDependencies 
       })
     : new UnavailableMentorFeedbackClient();
   const mentorFeedbackService = new MentorFeedbackService(mentorFeedbackClient);
+  // User-triggered sibling of mentor feedback (ADR 0029), same config.
+  // Calls the AI project's POST /users/{user_id}/mentor-guidance, which may
+  // use an LLM on that side - the OpenAI key lives only in that service.
+  // UnavailableMentorGuidanceClient (no network call) is the default.
+  const mentorGuidanceClient: MentorGuidanceClient = aiModelsBaseUrl
+    ? new HttpMentorGuidanceClient({
+        baseUrl: aiModelsBaseUrl,
+        serviceToken: aiModelsServiceToken || undefined,
+      })
+    : new UnavailableMentorGuidanceClient();
+  // goalService satisfies MentorGuidanceGoalLookup structurally and enforces
+  // ownership before anything is sent.
+  const mentorGuidanceService = new MentorGuidanceService(goalService, mentorGuidanceClient);
 
   return {
     authService: new AuthService(
@@ -182,6 +201,7 @@ export function createDefaultDependencies(dataDir?: string): ServerDependencies 
     roadmapService,
     activityService,
     mentorFeedbackService,
+    mentorGuidanceService,
   };
 }
 
@@ -212,6 +232,7 @@ export function createServer(deps: ServerDependencies = createDefaultDependencie
   );
   app.use('/api/v1/activity', createActivityRouter(deps.authService, deps.activityService));
   app.use('/api/v1/mentor-feedback', createMentorFeedbackRouter(deps.authService, deps.mentorFeedbackService));
+  app.use('/api/v1/mentor-guidance', createMentorGuidanceRouter(deps.authService, deps.mentorGuidanceService));
 
   app.use(errorHandler);
 

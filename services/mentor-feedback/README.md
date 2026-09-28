@@ -26,3 +26,25 @@ never profile data, check-in notes, or a goal's free-text description.
 reads nothing from and writes nothing to any Better You repository, and
 never touches Goals, Roadmap, Check-ins, Profile, or Activity. The read-only
 route is `GET /api/v1/mentor-feedback` (`apps/api/src/routes/mentorFeedback.ts`).
+
+## Mentor guidance (ADR 0029)
+
+The user-triggered sibling of mentor feedback. `MentorGuidanceService.getGuidance(userId, goalId)`
+looks the goal up as the caller (ownership enforced by `GoalService`), narrows it with
+`buildMentorGuidanceInput()` to `{ contextKey, goalTitle }`, and hands that to a
+`MentorGuidanceClient`. `UnavailableMentorGuidanceClient` is the default (no network call);
+`HttpMentorGuidanceClient` calls the AI project's `POST /users/{user_id}/mentor-guidance`
+with exactly `{ context_key, goal }` when `AI_MODELS_BASE_URL` is set. That endpoint may
+call OpenAI - the key lives only in the AI project. Like mentor feedback, the client never
+throws: every failure becomes `status: 'unavailable'` with a short, non-secret `reasonCode`.
+Route: `POST /api/v1/mentor-guidance` (`apps/api/src/routes/mentorGuidance.ts`).
+End-to-end check against running servers: `npm run verify:ai-mentor-guidance`.
+
+Clarification replies (ADR 0029): the route also accepts optional `clarifications` - this
+interaction's `{ question, answer }` turns (at most 2), where each question is one the model
+itself asked (`acceptsReply: true`) and each answer is text the user explicitly submitted.
+`validateMentorGuidanceClarifications()` applies the AI endpoint's own bounds (non-blank,
+<= 500 code points per field) after the ownership check; the client forwards the turns as the
+endpoint's `clarifications`, so the model reads each answer against its question. The web
+panel holds the turns for one interaction only; nothing stores them, and the AI side never
+turns them into evidence.

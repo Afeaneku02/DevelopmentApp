@@ -4,6 +4,7 @@ import {
   RoadmapMilestoneNotActiveError,
   RoadmapNotFoundError,
   RoadmapStepNotFoundError,
+  RoadmapValidationError,
 } from './errors';
 import { validateRoadmapDraft } from './roadmapValidation';
 import { buildRoadmapGenerationInput } from './roadmapGenerationInput';
@@ -12,6 +13,17 @@ import type { RoadmapGenerator } from './roadmapGenerator';
 import type { GoalLookup } from './goalLookup';
 
 export class RoadmapService {
+  // Serialize writes for a goal in this local, single-process service so
+  // accepting a suggestion cannot overwrite a concurrent completion.
+  private readonly writes = new Map<string, Promise<unknown>>();
+
+  private async writeForGoal<T>(goalId: string, operation: () => Promise<T>): Promise<T> {
+    const previous = this.writes.get(goalId) ?? Promise.resolve();
+    const current = previous.catch(() => undefined).then(operation);
+    this.writes.set(goalId, current);
+    try { return await current; }
+    finally { if (this.writes.get(goalId) === current) this.writes.delete(goalId); }
+  }
   constructor(
     private readonly repository: RoadmapRepository,
     private readonly goalLookup: GoalLookup,
@@ -24,6 +36,10 @@ export class RoadmapService {
   // runs, so a roadmap can never be created against a goal that isn't the
   // caller's.
   async generateRoadmap(userId: string, goalId: string): Promise<Roadmap> {
+    return this.writeForGoal(goalId, () => this.generateRoadmapUnlocked(userId, goalId));
+  }
+
+  private async generateRoadmapUnlocked(userId: string, goalId: string): Promise<Roadmap> {
     const goal = await this.goalLookup.getGoal(userId, goalId);
 
     const existing = await this.repository.findByGoalId(goalId);
@@ -102,6 +118,11 @@ export class RoadmapService {
   // cascade logic below doesn't anticipate.
   async completeActionStep(userId: string, roadmapId: string, actionStepId: string): Promise<Roadmap> {
     const roadmap = await this.getRoadmap(userId, roadmapId);
+    return this.writeForGoal(roadmap.goalId, () => this.completeActionStepUnlocked(userId, roadmapId, actionStepId));
+  }
+
+  private async completeActionStepUnlocked(userId: string, roadmapId: string, actionStepId: string): Promise<Roadmap> {
+    const roadmap = await this.getRoadmap(userId, roadmapId);
 
     const milestoneIndex = roadmap.milestones.findIndex((milestone) =>
       milestone.actionSteps.some((step) => step.id === actionStepId)
@@ -140,5 +161,48 @@ export class RoadmapService {
     };
 
     return this.repository.update(updated);
+  }
+
+  // Explicit user acceptance, never an automatic consequence of AI output.
+  async addMentorAction(userId: string, goalId: string, rawAction: unknown): Promise<Roadmap> {
+    return this.writeForGoal(goalId, async () => {
+      const goal = await this.goalLookup.getGoal(userId, goalId);
+      if (goal.status !== 'active') throw new RoadmapValidationError('goalId', 'Only active goals can receive new steps');
+      if (typeof rawAction !== 'string' || !rawAction.trim() || [...rawAction.trim()].length > 500) {
+        throw new RoadmapValidationError('action', 'Action must contain between 1 and 500 characters');
+      }
+      const action = rawAction.trim();
+      const existing = await this.repository.findByGoalId(goalId);
+      if (existing && (existing.userId !== userId || existing.status === 'archived')) {
+        throw new RoadmapValidationError('goalId', 'This plan cannot receive new steps');
+      }
+      // Content-based deduplication survives retries, reloads, and restarts.
+      if (existing?.milestones.some((m) => m.actionSteps.some((s) => s.description === action || s.title === action))) {
+        return existing;
+      }
+      const step: ActionStep = {
+        id: crypto.randomUUID(),
+        title: action.length <= 200 ? action : 'Mentor suggestion',
+        description: action.length <= 200 ? '' : action,
+        status: 'pending',
+      };
+      const timestamp = this.now().toISOString();
+      const milestones = existing ? existing.milestones.map((m) => ({ ...m, actionSteps: [...m.actionSteps] })) : [];
+      const active = milestones.find((m) => m.status === 'active');
+      if (active && active.actionSteps.length < 10) {
+        active.actionSteps.push(step);
+      } else {
+        milestones.push({
+          id: crypto.randomUUID(), title: 'Mentor suggestions', description: '',
+          status: active ? 'pending' : 'active', actionSteps: [step],
+        });
+      }
+      validateRoadmapDraft({ milestones });
+      const roadmap: Roadmap = {
+        id: existing?.id ?? crypto.randomUUID(), userId, goalId,
+        status: 'active', milestones, createdAt: existing?.createdAt ?? timestamp, updatedAt: timestamp,
+      };
+      return existing ? this.repository.update(roadmap) : this.repository.create(roadmap);
+    });
   }
 }
